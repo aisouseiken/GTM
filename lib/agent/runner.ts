@@ -60,6 +60,11 @@ export async function runSearchJob(
   const { getJob } = await import("@/lib/data/store"); // 必要になった時点で読み込む（動的インポート）
   const job = getJob(jobId);
   if (!job) return; // ジョブが見つからなければ何もしない
+  // ★二重課金防止：まだ実行前(queued)のジョブだけを走らせる。
+  //   SSEはGETなので再読込・再接続で何度も叩かれうる。すでに実行中/完了/失敗なら即終了する。
+  if (job.status !== "queued") return;
+  job.status = "running"; // すぐに実行中へ移し、後続の再入を弾く
+  saveJob(job);
   const plan = getSearchPlan(job.searchPlanId);
   if (!plan) { // もとになる検索プランが無ければ失敗として終了
     job.status = "failed";
@@ -76,7 +81,7 @@ export async function runSearchJob(
     // 1) リスト抽出：コネクタ層から候補を集める（最新化キャッシュを活用）
     const target = Math.min(plan.estimatedLeads, 40); // 目標件数（多くても40件まで）
     const market = plan.icp.market;
-    const sig = signatureOf(plan.icp, target); // 検索条件の署名（同条件なら同じ）
+    const sig = signatureOf(job.workspaceId, plan.icp, target); // 検索条件の署名（利用者ごとに分離）
 
     let candidates: LeadCandidate[]; // 各コネクタが見つけた候補（重複を含む）
     const cached = getFreshCandidates(sig); // 新鮮なキャッシュがあるか？
@@ -140,8 +145,10 @@ export async function runSearchJob(
     const saved: Lead[] = []; // 保存できたリード
 
     for (const lead of merged) { // リードを1件ずつ検証・保存
-      // クレジット不足なら部分完了で打ち切り
-      if (wallet && wallet.balance - creditsSpent <= 0) {
+      // クレジット不足なら部分完了で打ち切り。
+      // ★以前は「wallet.balance - creditsSpent」と二重に引いて判定していたバグを修正。
+      //   spendCredits が残高を直接減らすので wallet.balance は常に最新。ここは現在残高だけを見る。
+      if (wallet && wallet.balance <= 0) {
         job.status = "partial"; // 残高が尽きたら途中まで（部分完了）で終了
         break;
       }

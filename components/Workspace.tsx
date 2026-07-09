@@ -12,7 +12,7 @@
 // useState: 画面が覚えておく値（状態）を管理する / useRef: 再描画をまたいで値を保持する箱 / useCallback: 関数を作り直さず使い回す
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Lead, Market, SearchPlan } from "@/lib/domain/types";
+import type { Lead, SearchPlan } from "@/lib/domain/types";
 import { FitBar, CompanyAvatar } from "./FitBar";
 import { LeadDrawer } from "./LeadDrawer";
 
@@ -36,12 +36,8 @@ const SUGGESTIONS = [
 
 export function Workspace({
   workspaceId,
-  market,
-  initialBalance,
 }: {
   workspaceId: string;
-  market: Market;
-  initialBalance: number;
 }) {
   // ここから画面が覚えておく値（state）の定義です。値が変わると画面が自動で描き直されます。
   const [phase, setPhase] = useState<Phase>("idle"); // 今どの進行状態か（待機/作成中/実行中など）
@@ -51,7 +47,6 @@ export function Workspace({
   const [sessionId, setSessionId] = useState<string | undefined>(); // 会話の続きを覚えておくための識別子
   const [progress, setProgress] = useState<ProgressLine[]>([]); // 進行状況ログの一覧
   const [leads, setLeads] = useState<Lead[]>([]); // 見つかったリード（見込み客）の一覧
-  const [balance, setBalance] = useState(initialBalance); // 残りクレジット（検索に使うポイント）の残高
   const [jobId, setJobId] = useState<string | null>(null); // 実行中の検索ジョブ（処理）のID
   const [selected, setSelected] = useState<Lead | null>(null); // 詳細パネルを開くために選んだリード
   const [saved, setSaved] = useState(false); // 結果をリストに保存済みかどうか
@@ -128,18 +123,21 @@ export function Workspace({
       if (data.type === "lead") {
         // リード1件を取得して追加（逐次表示）
         const r = await fetch(`/api/leads?jobId=${jid}`);
-        const { leads: fresh, job } = await r.json();
+        const { leads: fresh } = await r.json();
         setLeads(fresh); // 最新のリード一覧で画面を更新
-        if (job) setBalance(initialBalanceAfter(initialBalance, job.creditsSpent)); // 使った分だけ残高を減らす
       } else if (data.type === "completed") {
         // 検索がすべて完了したとき
         pushProgress(data.message, "ok");
         const r = await fetch(`/api/leads?jobId=${jid}`);
-        const { leads: fresh, job } = await r.json();
+        const { leads: fresh } = await r.json();
         setLeads(fresh);
-        if (job) setBalance(initialBalanceAfter(initialBalance, job.creditsSpent));
         setPhase("done"); // 状態を「完了」に
-        router.refresh(); // サーバー描画のヘッダー残高も同期
+        router.refresh(); // サーバー描画のヘッダー残高（クレジット）を最新化
+      } else if (data.type === "failed") {
+        // ★検索が失敗したとき：エラーを表示し、状態を戻す（＝無限にスピナーが回るのを防ぐ）
+        pushProgress(`エラー：${data.message}`, "info");
+        setPhase(plan ? "plan_ready" : "idle"); // 再実行できる状態に戻す
+        router.refresh();
       } else {
         // それ以外は途中経過のお知らせとしてログに追加
         pushProgress(data.message, "info");
@@ -149,21 +147,28 @@ export function Workspace({
     ev.addEventListener("end", () => ev.close());
     // 通信エラーが起きた場合も接続を閉じる
     ev.onerror = () => ev.close();
-  }, [plan, initialBalance, router]);
+  }, [plan, router]);
 
   // 「除外」されていないリードだけを表示対象として絞り込む
   const activeLeads = leads.filter((l) => l.status !== "excluded");
 
   // リードの状態（お気に入り/新規/除外など）を切り替え、その変更をサーバーにも保存する関数
   const toggleStatus = async (lead: Lead, status: Lead["status"]) => {
+    const prev = lead.status; // 失敗したとき元に戻すために、変更前の状態を覚えておく
     // まず画面上のリストをすぐに更新（該当リードの状態だけ差し替え）して、操作をすぐ反映
     setLeads((ls) => ls.map((l) => (l.id === lead.id ? { ...l, status } : l)));
     // 続いてサーバーにも変更を保存する（PATCH = 一部だけ更新する通信）
-    await fetch("/api/leads", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leadId: lead.id, status }),
-    });
+    try {
+      const res = await fetch("/api/leads", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id, status }),
+      });
+      // ★保存に失敗したら、画面を元の状態へ戻す（見た目と実データのズレを防ぐ）
+      if (!res.ok) throw new Error("failed");
+    } catch {
+      setLeads((ls) => ls.map((l) => (l.id === lead.id ? { ...l, status: prev } : l)));
+    }
   };
 
   // 現在表示しているリードをひとつのリストとして保存する関数
@@ -297,11 +302,6 @@ export function Workspace({
       )}
     </div>
   );
-}
-
-// 元の残高から使った分を引いた残りを計算する。マイナスにならないよう最小0にする。
-function initialBalanceAfter(before: number, spent: number) {
-  return Math.max(0, before - spent);
 }
 
 // PlanCard: AIが作った検索プランの中身（業種・地域・見積りなど）を表示し、実行ボタンを置くカード部品

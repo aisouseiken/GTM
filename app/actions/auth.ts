@@ -7,6 +7,7 @@
 import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth/session";
 import { listWorkspaces } from "@/lib/data/store";
+import { rateLimit } from "@/lib/ratelimit";
 
 // ログイン処理。フォームから送られたメールアドレスと名前を受け取る。
 export async function loginAction(formData: FormData) {
@@ -14,6 +15,8 @@ export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") || "").trim();
   const name = String(formData.get("name") || "").trim();
   if (!email) return; // メールが空なら何もしない。
+  // レート制限：同じメールで1分に10回まで（総当たりログインを抑止）
+  if (!rateLimit(`login:${email.toLowerCase()}`, 10, 60_000)) return;
   const user = await signIn(email, name); // ログイン状態を作る。
   const ws = listWorkspaces(user.id); // そのユーザーの作業スペース一覧を取得。
   // 作業スペースがあれば最初のものへ、無ければアプリ入口へ移動させる。

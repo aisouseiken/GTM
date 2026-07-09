@@ -10,12 +10,13 @@ import { Logo } from "./Logo";
 
 // 画面上部に並べるメニューの一覧。label は表示文字、href は飛び先（#付きはページ内リンク）。
 
+// ラベルと飛び先のセクションが一致するように命名（Partners/Guide のズレを解消）
 const NAV = [
-  { label: "Product", href: "#product" },
-  { label: "Verticals", href: "#verticals" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Partners", href: "#data" },
-  { label: "Guide", href: "#features" },
+  { label: "Product", href: "#product" }, // 動く商品デモ
+  { label: "Verticals", href: "#verticals" }, // 対応業種
+  { label: "特長", href: "#features" }, // 差別化ポイント
+  { label: "データ検証", href: "#data" }, // 連絡先の多段検証
+  { label: "Pricing", href: "#pricing" }, // 料金
 ];
 
 export function MarketingNav() {

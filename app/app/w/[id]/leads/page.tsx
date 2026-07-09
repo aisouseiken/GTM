@@ -49,15 +49,19 @@ export default async function LeadsPage({
             </div>
           ) : (
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {/* 保存済みリストを1件ずつカードにして並べる */}
+              {/* 保存済みリストを1件ずつカードにして並べる（クリックで詳細ページへ） */}
               {lists.map((l) => (
-                <div key={l.id} className="rounded-2xl border border-line bg-paper p-5">
+                <Link
+                  key={l.id}
+                  href={`/app/w/${ws.id}/lists/${l.id}`}
+                  className="rounded-2xl border border-line bg-paper p-5 transition-colors hover:border-brand/50"
+                >
                   <div className="font-medium text-ink">{l.name}</div>
                   <div className="mt-1 text-sm text-muted">{l.leadIds.length} 件のリード</div>
                   <div className="mt-3 text-xs text-muted">
                     {new Date(l.createdAt).toLocaleString("ja-JP")}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

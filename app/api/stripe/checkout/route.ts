@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getWorkspace, applyPlanChange, upsertSubscription, getSubscription } from "@/lib/data/store";
+import { getWorkspace, setWorkspacePlan, grantMonthlyCredits, upsertSubscription, getSubscription } from "@/lib/data/store";
 import { getStripe, priceIdForPlan } from "@/lib/stripe/client";
 import type { Plan } from "@/lib/domain/types";
 
@@ -50,9 +50,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ url: session.url, mode: "stripe" });
   }
 
-  // 鍵未設定＝モック：プランを即時適用（デモ用。Webhook相当の処理をここで実行）
-  // ※Webhook＝通常はStripeから完了通知が届いて反映する仕組み。ここではその代わりに即反映する
-  applyPlanChange(workspaceId, plan);
+  // 鍵未設定のとき：
+  // ★本番(production)では、鍵未設定でモック付与を許すと「決済なしで有料化＋クレジット増殖」の穴になる。
+  //   そのため本番では実行せず 503（準備中）を返す。モックは開発環境だけに限定する。
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "billing_not_configured" }, { status: 503 });
+  }
+
+  // 開発環境のモック：プランを即時適用（Webビュー相当の処理をここで代替実行）。
+  // ★冪等化：同じワークスペース×プラン×同じ月では二度と付与しない（連打による無限増殖を防止）。
+  const ym = new Date().toISOString().slice(0, 7); // 例: "2026-07"
+  setWorkspacePlan(workspaceId, plan);
+  grantMonthlyCredits(workspaceId, plan, `mock:${workspaceId}:${plan}:${ym}`);
   upsertSubscription(workspaceId, { plan, status: "active" });
   return NextResponse.json({ url: `${billingUrl}?checkout=mock`, mode: "mock" });
 }

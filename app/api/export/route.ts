@@ -10,7 +10,10 @@ import { getJob, listLeadsByJob, getWorkspace } from "@/lib/data/store";
 // CSVの1マス分を安全な文字列に整える補助関数。
 // 値の中にカンマ・改行・二重引用符が含まれると表が崩れるため、"" で囲んでエスケープする
 function csvCell(v: unknown): string {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // ★数式インジェクション対策：Excel/Sheetsは = + - @ タブ 復帰 で始まるセルを「数式」と解釈し実行する。
+  //   実データの社名・住所などが悪用されないよう、先頭に ' を付けて“ただの文字”にする。
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

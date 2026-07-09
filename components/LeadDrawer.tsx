@@ -7,6 +7,7 @@
  * お気に入り登録や除外の操作もここから行えます。
  */
 
+import { useEffect } from "react";
 import type { Lead } from "@/lib/domain/types";
 import { CompanyAvatar } from "./FitBar";
 
@@ -30,12 +31,24 @@ export function LeadDrawer({
   // 電話の検証結果の中で最も高いスコアを取り出す（検証が無ければ0）
   const phoneScore = Math.max(0, ...lead.verifications.filter((v) => v.field === "phone").map((v) => v.score));
 
+  // ★アクセシビリティ：Esc キーでパネルを閉じられるようにする（キーボード利用者向け）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     // 画面全体を覆う黒い半透明の背景。ここをクリックするとパネルを閉じる。
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-ink/20" />
-      {/* 右側のパネル本体。中をクリックしても閉じないよう stopPropagation で背景へのクリック伝播を止める */}
+      {/* 右側のパネル本体。role=dialog / aria-modal でスクリーンリーダーに「モーダル」と伝える */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${lead.companyName} の詳細`}
         className="scroll-thin relative h-full w-full max-w-md overflow-y-auto border-l border-line bg-paper p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >

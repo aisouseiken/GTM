@@ -32,11 +32,17 @@ export async function PATCH(req: Request) {
   // ログイン確認：未ログインなら 401（認証が必要）
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  // 更新したいリードIDと、新しい状態を本文から読み取る
-  const { leadId, status } = (await req.json()) as {
+  // 更新したいリードIDと、新しい状態を本文から読み取る（壊れたbodyは400）
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  const { leadId, status } = body as {
     leadId: string;
     status: "new" | "favorite" | "excluded";
   };
+  // ★状態はホワイトリスト検証（未知の値を保存させない）
+  if (!["new", "favorite", "excluded"].includes(status)) {
+    return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  }
   // 対象のリードを取得。無ければ 404（見つからない）
   const lead = getLead(leadId);
   if (!lead) return NextResponse.json({ error: "not found" }, { status: 404 });

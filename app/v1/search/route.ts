@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { bearerFrom, resolveApiKey } from "@/lib/auth/apikey";
-import { getWorkspace, getWallet, saveApiKey } from "@/lib/data/store";
+import { getWorkspace, getWallet, saveApiKey, getJob } from "@/lib/data/store";
 import { createPlan } from "@/lib/agent/planner";
 import { createJob, runSearchJob } from "@/lib/agent/runner";
+import { rateLimit } from "@/lib/ratelimit";
 
 /*
  * このAPI（POST /v1/search）は、外部プログラム向けに公開された検索用の窓口です。
@@ -17,6 +18,11 @@ export async function POST(req: Request) {
   // 認証：ヘッダーのBearerトークンからAPIキーを解決。無効なら 401（認証が必要）
   const key = resolveApiKey(bearerFrom(req));
   if (!key) return NextResponse.json({ error: "invalid api key" }, { status: 401 });
+
+  // レート制限：1つのAPIキーで1分あたり20回まで（叩きすぎ・DoS・コスト暴走を防ぐ）
+  if (!rateLimit(`v1search:${key.id}`, 20, 60_000)) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
 
   // APIキーに紐づくワークスペースを取得する
   const ws = getWorkspace(key.workspaceId);
@@ -36,25 +42,22 @@ export async function POST(req: Request) {
   if (!body.prompt?.trim())
     return NextResponse.json({ error: "prompt required" }, { status: 400 });
 
-  // クレジット残高チェック：残高が無ければ 402（支払いが必要）
+  // クレジット残高チェック：ウォレットが無い or 残高0以下なら 402（すり抜け防止で「!wallet ||」）
   const wallet = getWallet(ws.id);
-  if (wallet && wallet.balance <= 0)
+  if (!wallet || wallet.balance <= 0)
     return NextResponse.json({ error: "insufficient_credits" }, { status: 402 });
 
-  // 指示文から検索プランを作成する（取得件数は最大40件に制限）
-  const plan = createPlan(
-    ws.id,
-    "api",
-    body.prompt,
-    body.market ?? ws.market,
-    Math.min(body.max_results ?? 24, 40)
-  );
+  // 取得件数は 1〜40 の範囲に整える（負数・0・巨大値・数値でない値を弾く＝件数計算の破綻防止）
+  const maxResults = Math.max(1, Math.min(Number(body.max_results) || 24, 40));
+  // 指示文から検索プランを作成する
+  const plan = createPlan(ws.id, "api", body.prompt, body.market ?? ws.market, maxResults);
   // プランからジョブを作成する
   const job = createJob(plan);
   // API 経由は同期実行（完了まで待つ）
   // ※画面向けのSSEと違い、進捗通知は使わないので送信関数は空にしている
   await runSearchJob(job.id, () => {});
 
-  // 作成したジョブのIDと状態を返す（結果は GET /v1/jobs/{id} で取得する）
-  return NextResponse.json({ job_id: job.id, status: "created" });
+  // 作成したジョブのIDと「実際の状態」を返す（done/partial/failed を正しく伝える）
+  const finished = getJob(job.id);
+  return NextResponse.json({ job_id: job.id, status: finished?.status ?? "queued" });
 }

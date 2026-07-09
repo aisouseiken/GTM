@@ -16,7 +16,9 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   // リクエスト本文(JSON)を読み取り、必要な値を取り出す
-  const body = await req.json();
+  // ★壊れたJSON/空bodyで落ちないよう catch → 400（不正リクエスト）を返す
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
   const { workspaceId, prompt } = body as { workspaceId: string; prompt: string; sessionId?: string };
   let sessionId = body.sessionId as string | undefined;
 

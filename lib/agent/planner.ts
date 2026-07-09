@@ -14,6 +14,7 @@ import type {
   StructuredICP,
 } from "@/lib/domain/types";
 import { id, saveSearchPlan } from "@/lib/data/store";
+import { getConnectors } from "@/lib/connectors/registry";
 
 // 業種1つ分の定義。どんな言葉に反応し、検索時にどう言い換えるかを持つ。
 interface IndustryDef {
@@ -123,28 +124,16 @@ export function buildICP(prompt: string, marketDefault: Market): StructuredICP {
 }
 
 // コネクタ選定（市場別）
-// 市場とシグナルに応じて「どのデータ取得先を使うか」を決めて一覧で返す。
-function connectorsForMarket(market: Market, signals: string[]): ConnectorPlanItem[] {
-  // まず市場ごとの基本セットを用意する
-  const items: ConnectorPlanItem[] =
-    market === "JP"
-      ? [
-          { connectorId: "maps_jp", label: "地図・ローカル企業", params: {} },
-          { connectorId: "houjin", label: "法人番号(gBizINFO)", params: {} },
-          { connectorId: "site", label: "企業サイト", params: {} },
-        ]
-      : [
-          { connectorId: "maps", label: "Google Maps", params: {} },
-          { connectorId: "linkedin", label: "企業データ", params: {} },
-          { connectorId: "site", label: "Website", params: {} },
-        ];
-  // 採用シグナルがあれば求人サイトのコネクタを追加
-  if (signals.some((s) => /採用|Hiring/.test(s)))
-    items.push({ connectorId: market === "JP" ? "jobs_jp" : "jobs", label: "求人シグナル", params: {} });
-  // 広告シグナルがあれば広告透明性のコネクタを追加
-  if (signals.some((s) => /広告|ads/i.test(s)))
-    items.push({ connectorId: "ads", label: "広告透明性", params: {} });
-  return items;
+// 市場に応じて「どのデータ取得先を使うか」を一覧で返す。
+// ★実際に実行するコネクタ（registry）からそのまま導出する。
+//   こうすることで「プランに表示・保存するコネクタ」と「実行するコネクタ」が必ず一致する
+//   （＝以前の site と site_jp のズレ、存在しない ads を計画に載せる不整合を解消）。
+function connectorsForMarket(market: Market): ConnectorPlanItem[] {
+  return getConnectors(market).map((c) => ({
+    connectorId: c.id,
+    label: c.label,
+    params: {},
+  }));
 }
 
 // 想定コスト（クレジット）と想定件数をざっくり見積もる。
@@ -165,7 +154,7 @@ export function createPlan(
   targetCount = 24 // 目標取得件数（省略時は24件）
 ): SearchPlan {
   const icp = buildICP(prompt, marketDefault); // 文章を顧客像に変換
-  const connectors = connectorsForMarket(icp.market, icp.signals); // 使うデータ取得先を決定
+  const connectors = connectorsForMarket(icp.market); // 使うデータ取得先を決定（実行と一致）
   const est = estimate(targetCount, connectors.length); // コストと件数を見積もる
   const plan: SearchPlan = { // プランを組み立てる
     id: id("plan"),

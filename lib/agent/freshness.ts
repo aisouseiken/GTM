@@ -22,13 +22,18 @@ interface CacheEntry {
 const g = globalThis as unknown as { __gtmFresh?: Map<string, CacheEntry> };
 const cache: Map<string, CacheEntry> = (g.__gtmFresh ??= new Map());
 
-// 検索条件から一意の「署名」を作る（業種・地域・市場・シグナル・件数が同じなら同じ署名）
-export function signatureOf(icp: StructuredICP, count: number): string {
+// 検索条件から一意の「署名」を作る。
+// ★重要：先頭に workspaceId を必ず含める。これが無いと、あるワークスペースのキャッシュが
+//   別のワークスペース（＝別の利用者）に返ってしまい、情報漏洩・誤課金になる。
+//   さらに元プロンプト(raw)も含めて、似た条件どうしの取り違え（衝突）を防ぐ。
+export function signatureOf(workspaceId: string, icp: StructuredICP, count: number): string {
   return [
+    workspaceId, // ← 利用者ごとに必ず分離する
     icp.market,
     icp.industry,
     icp.location,
     [...icp.signals].sort().join(","),
+    icp.raw.trim(), // 元の入力文も含めて取り違えを防ぐ
     count,
   ].join("|");
 }

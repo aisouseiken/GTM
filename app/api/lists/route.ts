@@ -12,8 +12,10 @@ export async function POST(req: Request) {
   // ログイン確認：未ログインなら 401（認証が必要）
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  // 本文から、どのワークスペースに・何という名前で・どのリードを保存するかを読み取る
-  const { workspaceId, name, leadIds } = (await req.json()) as {
+  // 本文から、どのワークスペースに・何という名前で・どのリードを保存するかを読み取る（壊れたbodyは400）
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  const { workspaceId, name, leadIds } = body as {
     workspaceId: string;
     name: string;
     leadIds: string[];

@@ -24,7 +24,7 @@ export default async function WorkspacePage({
   // AppShell = サイドバーやヘッダーなど共通の外枠。その中に検索作業画面（Workspace）を差し込む。
   return (
     <AppShell workspace={ws} balance={wallet?.balance ?? 0} active="search">
-      <Workspace workspaceId={ws.id} market={ws.market} initialBalance={wallet?.balance ?? 0} />
+      <Workspace workspaceId={ws.id} />
     </AppShell>
   );
 }
