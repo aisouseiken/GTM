@@ -1,0 +1,269 @@
+// GTM データベーススキーマ（設計書 05_データモデル設計 準拠）
+// 開発環境の DATABASE_URL に接続。本番環境・本番データには触れない。
+// スキーマとマイグレーションは Git で管理する。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  workspaces Workspace[]
+  members    WorkspaceMember[]
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  market    String   @default("JP") // JP | GLOBAL
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+
+  owner        User               @relation(fields: [ownerId], references: [id])
+  members      WorkspaceMember[]
+  apiKeys      ApiKey[]
+  sessions     ChatSession[]
+  searchPlans  SearchPlan[]
+  jobs         Job[]
+  leads        Lead[]
+  lists        LeadList[]
+  wallet       CreditWallet?
+  transactions CreditTransaction[]
+  subscription Subscription?
+
+  @@index([ownerId])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String   @default("member") // owner | member
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  keyPreview  String
+  keyHash     String    @unique
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model ChatSession {
+  id          String   @id @default(cuid())
+  workspaceId String
+  title       String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([workspaceId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String // user | assistant | system
+  content   String
+  kind      String?
+  data      Json?
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+// 検索プラン（★再現性の要：構造化ICP＋コネクタをスナップショット保存）
+model SearchPlan {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  sessionId        String?
+  structuredIcp    Json
+  connectors       Json
+  estimatedCredits Int
+  estimatedLeads   Int
+  createdAt        DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jobs      Job[]
+
+  @@index([workspaceId])
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  searchPlanId String
+  status       String    @default("queued")
+  resultCount  Int       @default(0)
+  creditsSpent Int       @default(0)
+  costInternal Decimal   @default(0)
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  searchPlan SearchPlan @relation(fields: [searchPlanId], references: [id])
+  events     JobEvent[]
+  leads      Lead[]
+
+  @@index([workspaceId, startedAt])
+}
+
+model JobEvent {
+  id        BigInt   @id @default(autoincrement())
+  jobId     String
+  type      String
+  message   String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, id])
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  jobId        String
+  companyName  String
+  domain       String
+  email        String?
+  phone        String?
+  address      String?
+  location     String
+  industry     String
+  category     String
+  size         String?
+  headcount    Int?
+  funding      String?
+  signals      Json
+  buyingSignal String?
+  enrichment   Json
+  fitScore     Int
+  confidence   Int
+  status       String   @default("new") // new | favorite | excluded
+  createdAt    DateTime @default(now())
+
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  job           Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sources       LeadSource[]
+  verifications LeadVerification[]
+  listItems     LeadListItem[]
+
+  @@index([workspaceId, jobId])
+  @@index([domain])
+  @@index([workspaceId, status])
+}
+
+model LeadSource {
+  id          String @id @default(cuid())
+  leadId      String
+  connectorId String
+  label       String
+  url         String
+  snippet     String
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+model LeadVerification {
+  id        String   @id @default(cuid())
+  leadId    String
+  field     String // email | phone
+  provider  String
+  result    String // valid | risky | invalid | unknown
+  score     Int
+  checkedAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+model LeadList {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items     LeadListItem[]
+
+  @@index([workspaceId])
+}
+
+model LeadListItem {
+  id      String   @id @default(cuid())
+  listId  String
+  leadId  String
+  addedAt DateTime @default(now())
+
+  list LeadList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  lead Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, leadId])
+}
+
+model CreditWallet {
+  workspaceId String   @id
+  balance     Int      @default(0)
+  monthlyGrant Int     @default(0)
+  periodStart DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  workspaceId String
+  jobId       String?
+  delta       Int
+  reason      String // grant | search | verify | enrich | purchase
+  note        String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  workspaceId          String    @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  plan                 String    @default("free")
+  status               String    @default("active") // active | past_due | canceled | incomplete
+  currentPeriodEnd     DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}

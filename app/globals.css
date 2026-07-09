@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+/*
+ * GTM design system — origami.chat に寄せたクリーム/セリフ/ピンクの世界観
+ */
+@theme inline {
+  /* base surfaces */
+  --color-cream: #f7f5f2;
+  --color-cream-100: #f2efe9;
+  --color-paper: #ffffff;
+  --color-ink: #1a1a1a;
+  --color-ink-soft: #4b4b4b;
+  --color-muted: #8a8a86;
+  --color-line: #e7e3dc;
+  --color-line-strong: #d9d4cb;
+
+  /* brand accent (hummingbird pink) */
+  --color-brand: #ff2e93;
+  --color-brand-soft: #ffe3f1;
+
+  /* signal colors for fit score */
+  --color-fit-high: #7bc47f;
+  --color-fit-mid: #cfe08a;
+  --color-fit-low: #e6c98a;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --radius-card: 16px;
+}
+
+:root {
+  --background: #f7f5f2;
+  --foreground: #1a1a1a;
+}
+
+html,
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* ナビのアンカー移動：スティッキーヘッダー分の余白（スムーススクロールはJSで手動制御） */
+:where([id]) {
+  scroll-margin-top: 5rem;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* 全体にもやっとした淡いピンクの煙のようなアンビエンス（控えめだが知覚できる程度・固定） */
+  background-image:
+    radial-gradient(50% 44% at 15% 6%, rgba(255, 46, 147, 0.16), transparent 70%),
+    radial-gradient(46% 42% at 88% 24%, rgba(255, 46, 147, 0.13), transparent 70%),
+    radial-gradient(52% 46% at 62% 58%, rgba(255, 46, 147, 0.12), transparent 72%),
+    radial-gradient(48% 46% at 26% 94%, rgba(255, 46, 147, 0.14), transparent 72%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* utility helpers */
+.font-serif-display {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+/* thin scrollbar for panels */
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #dcd7ce;
+  border-radius: 8px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* subtle fade-in for streamed rows */
+@keyframes gtm-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-row-in {
+  animation: gtm-fade-in 0.28s ease-out both;
+}
+
+@keyframes gtm-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.animate-pulse-soft {
+  animation: gtm-pulse 1.4s ease-in-out infinite;
+}
+
+/* 入力カーソル（キャレット）の点滅 — 約1.1sで1周期（点灯/消灯 約550msずつ） */
+@keyframes gtm-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.animate-caret {
+  animation: gtm-caret 1.1s steps(1) infinite;
+}
+
+/* セクション登場（opacity/translateY）— 1回だけ */
+.reveal-init {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.7s ease-out,
+    transform 0.7s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-caret {
+    animation: none;
+  }
+  .reveal-init {
+    opacity: 1;
+    transform: none;
+  }
+  .reveal-in {
+    transition: none;
+  }
+}
