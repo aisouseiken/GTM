@@ -249,9 +249,9 @@ export function Workspace({
           )}
         </div>
 
-        {/* input（画面下部の文字入力欄） */}
-        <div className="border-t border-line p-3">
-          <div className="flex items-end gap-2 rounded-2xl border border-line bg-paper p-2">
+        {/* input（画面下部の文字入力欄）。ChatGPTスマホ版のような丸い入力欄＋右下の丸い送信ボタン */}
+        <div className="border-t border-line bg-cream/60 p-3">
+          <div className="flex items-end gap-2 rounded-3xl border border-line-strong bg-paper py-2 pl-4 pr-2 shadow-sm">
             {/* 文字入力欄。value=今の入力内容、onChange=打つたびに state を更新 */}
             <textarea
               value={input}
@@ -269,17 +269,18 @@ export function Workspace({
               }}
               rows={1}
               placeholder={phase === "idle" ? "理想の顧客像を入力…" : "フォローアップを入力…"}
-              className="max-h-32 min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none"
+              className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-[15px] outline-none"
             />
-            {/* 送信ボタン。押すと入力内容を送信。空欄のときは押せない（薄く表示） */}
+            {/* 送信ボタン。右下に置く丸いボタン（ChatGPT風）。空欄のときは薄いグレーで押せない。 */}
             <button
               onClick={() => submitPrompt(input)}
               disabled={!input.trim()}
-              className="shrink-0 rounded-xl bg-ink px-3 py-2 text-white disabled:opacity-30"
+              aria-label="送信"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-white transition-colors disabled:bg-line disabled:text-muted"
             >
-              {/* この path は紙飛行機（送信）のアイコンを描いている */}
+              {/* 上向き矢印アイコン（ChatGPTの送信ボタンに合わせた形） */}
               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                <path d="M4 12l16-8-8 16-1.5-6.5L4 12Z" />
+                <path d="M12 4l-7 7 1.4 1.4L11 8.8V20h2V8.8l4.6 4.6L19 11z" />
               </svg>
             </button>
           </div>
