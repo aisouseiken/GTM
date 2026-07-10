@@ -61,6 +61,20 @@ const GLOBAL_SUFFIX = ["Labs", "Health", "Systems", "Dental", "Group", "Works", 
 const GLOBAL_CITY = ["Austin, TX", "Miami, FL", "Denver, CO", "Seattle, WA", "Chicago, IL", "Boston, MA", "Atlanta, GA", "Phoenix, AZ", "Portland, OR", "Nashville, TN"]; // 海外の所在地の候補
 const FUNDING = ["—", "Seed", "Series A $8M", "Series B $30M", "Series A ¥5億", "Bootstrapped", "Series C $80M"]; // 資金調達状況の候補
 
+// 会社名の「末尾（業種を表す語）」の候補を、検索された業種から作る。
+// ★これまでは業種を無視した固定リスト（工業・食品など）だったため、「美容室」を探しても
+//   「〇〇クリニック」等が出ていた。ここで業種ラベル・キーワードを末尾に使い、名前を業種に合わせる。
+function suffixPoolFor(icp: StructuredICP, jp: boolean): string[] {
+  // 業種ラベルと、その言い換えキーワードを末尾候補にする（例: 美容室 → 「美容室」「ヘアサロン」「美容院」）。
+  const fromIndustry = [icp.industry, ...icp.industryKeywords]
+    .map((s) => s.trim())
+    .filter((s) => s && s.length <= 8 && s !== "企業全般"); // 長すぎる語・汎用ラベルは除外
+  // 業種がはっきりしている（2種類以上の末尾語が作れる）ならそれを使う。
+  if (fromIndustry.length >= 2) return fromIndustry;
+  // 業種を絞れないとき（「企業全般」等）は従来の汎用リストにフォールバックする。
+  return jp ? JP_SUFFIX : GLOBAL_SUFFIX;
+}
+
 // 会社名と番号から、それらしいドメイン（例: sunrise1.example.com）を作る。
 function domainFrom(name: string, i: number): string {
   const ascii = name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase().slice(0, 12); // 名前から英数字だけ抜き出し小文字で最大12文字に
@@ -86,11 +100,12 @@ export function generateCompanyPool(icp: StructuredICP, planId: string, size: nu
   const jp = icp.market === "JP"; // 日本市場かどうか
   // プランID・業種・地域・件数を混ぜて「種」を作り、そこから乱数を用意する（同条件なら毎回同じ企業一覧になる）。
   const rng = mulberry32(seedFrom(planId + icp.industry + icp.location + size));
+  const suffixPool = suffixPoolFor(icp, jp); // 業種に合わせた「会社名の末尾」候補（例: 美容室・ヘアサロン）
   const out: PoolCompany[] = []; // 生成した企業を貯める入れ物
   for (let i = 0; i < size; i++) { // 指定件数(size)だけ企業を作る
-    const name = jp // 会社名を組み立てる（日本は頭＋中心＋末尾、海外は中心＋末尾）
-      ? `${pick(rng, JP_PREFIX)}${pick(rng, JP_CORE)}${pick(rng, JP_SUFFIX)}`
-      : `${pick(rng, GLOBAL_CORE)} ${pick(rng, GLOBAL_SUFFIX)}`;
+    const name = jp // 会社名を組み立てる（日本は頭＋中心＋業種末尾、海外は中心＋業種末尾）
+      ? `${pick(rng, JP_PREFIX)}${pick(rng, JP_CORE)}${pick(rng, suffixPool)}`
+      : `${pick(rng, GLOBAL_CORE)} ${pick(rng, suffixPool)}`;
     const domain = domainFrom(name, i + 1); // 会社名からドメインを作る
     const city = jp ? pick(rng, JP_CITY) : pick(rng, GLOBAL_CITY); // 所在地を市場に応じて選ぶ
     const headcount = 5 + Math.floor(rng() * 480); // 従業員数を5〜484人の範囲でランダムに
