@@ -2,9 +2,9 @@
 // 月額料金・付与クレジット・使える機能の一覧を表にして見せます。
 // カードのボタンを押すと新規登録ページへ進みます（金額の表示は日本円）。
 
-import Link from "next/link";
-import { PLAN_INFO, type Plan } from "@/lib/domain/types";
-import { formatJpy } from "@/lib/config";
+import Link from "next/link"; // ページ移動用のリンク部品。
+import { PLAN_INFO, type Plan } from "@/lib/domain/types"; // 各プランの料金情報と、プラン種別の「型（決まった形）」。
+import { formatJpy } from "@/lib/config"; // 金額を日本円の見やすい表記（¥・カンマ区切り）に整える関数。
 
 // 左から右へカードを並べる順番。
 const PLAN_ORDER: Plan[] = ["free", "starter", "pro", "scale"];
@@ -51,18 +51,21 @@ function ValueCell({ v }: { v: Val }) {
 // 料金カードを全プランぶん並べる本体。
 export function PricingCards() {
   return (
+    // 画面幅に応じてカードを1〜4列に並べる入れ物。
     <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* プランごとに1枚のカードを作る */}
+      {/* 決めた順番でプランを1つずつ取り出し、それぞれ1枚のカードを作る */}
       {PLAN_ORDER.map((p) => {
         const info = PLAN_INFO[p]; // そのプランの料金やクレジット等の情報。
         const highlight = p === "pro"; // pro プランだけ目立たせる（おすすめ枠）。
         return (
+          // カード本体。おすすめ枠はピンクの枠線で強調する。
           <div
             key={p}
             className={`flex flex-col rounded-2xl border bg-paper p-6 ${
               highlight ? "border-brand ring-1 ring-brand/30" : "border-line"
             }`}
           >
+            {/* プラン名（おすすめ枠は色を変える） */}
             <div
               className={`text-sm font-medium ${highlight ? "text-brand" : "text-ink-soft"}`}
             >
@@ -73,10 +76,12 @@ export function PricingCards() {
               {info.priceJpy === 0 ? "¥0" : formatJpy(info.priceJpy)}
               <span className="text-sm font-normal text-muted">/月</span>
             </div>
+            {/* 毎月付与されるクレジット数（3桁ごとにカンマ区切り） */}
             <div className="mt-2 text-sm text-ink-soft">
               {info.monthlyCredits.toLocaleString()} クレジット/月
             </div>
 
+            {/* 「はじめる」ボタン。押すと新規登録ページへ。おすすめ枠だけ黒背景で強調 */}
             <Link
               href="/signup"
               className={`mt-5 block rounded-full px-4 py-2 text-center text-sm font-medium ${
@@ -90,9 +95,12 @@ export function PricingCards() {
 
             {/* 機能項目：機能名（左）と、そのプランでの対応状況（右）を並べる */}
             <dl className="mt-6 space-y-3 border-t border-line/70 pt-5 text-[13px]">
+              {/* 機能一覧を1つずつ取り出し、機能名とこのプランでの対応を1行にする */}
               {FEATURES.map((f) => (
                 <div key={f.label} className="flex items-start justify-between gap-2">
+                  {/* 左：機能名 */}
                   <dt className="text-muted">{f.label}</dt>
+                  {/* 右：このプランでの対応状況（チェック/—/文字） */}
                   <dd className="shrink-0 text-right font-medium">
                     <ValueCell v={f.values[p]} />
                   </dd>

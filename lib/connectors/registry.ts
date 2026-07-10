@@ -8,18 +8,23 @@
 //     → 後段の名寄せで「最も良い値」を採用する様子を再現
 //   実データ源（LinkedIn/求人API/地図API等）へ差し替える際は、この形に合わせるだけ。
 
+// 市場（JP/GLOBAL）の型を借りる。
 import type { Market } from "@/lib/domain/types";
+// コネクタの契約・候補1件・検索条件の型を借りる。
 import type { DataSourceConnector, LeadCandidate, ConnectorSearchInput } from "./types";
+// モックの企業プール（偽の企業一覧）を作る機能と、安定した数値を作る機能、1社分の型を借りる。
 import { generateCompanyPool, stableFraction, type PoolCompany } from "@/lib/mock/pool";
+// gBizINFO の実コネクタと、それが有効かどうかを判定する機能を借りる。
 import { gbizConnector, gbizEnabled } from "./gbizinfo";
 
 // どの項目を埋めるコネクタか（部分データを再現するための指定）
+// 各コネクタは得意分野が違うので、埋める項目を true/false で切り替える。
 interface FieldProfile {
-  email?: boolean;
-  phone?: boolean;
-  signal?: boolean;
-  funding?: boolean;
-  tech?: boolean;
+  email?: boolean; // メールを埋めるか
+  phone?: boolean; // 電話を埋めるか
+  signal?: boolean; // 買い手シグナルを埋めるか
+  funding?: boolean; // 資金調達情報を埋めるか
+  tech?: boolean; // 技術スタック（使っているツール）を埋めるか
 }
 
 // プールの1社を、そのコネクタ視点の「候補」に変換する（担当外の項目は空にする）
@@ -31,29 +36,30 @@ function toCandidate(
   fields: FieldProfile,
   now: number
 ): LeadCandidate {
+  // プールの1社(c)を、このコネクタ視点の候補に詰め替えて返す。
   return {
-    companyName: c.companyName,
-    domain: c.domain,
-    email: fields.email ? c.email : undefined,
-    phone: fields.phone ? c.phone : undefined,
-    address: c.city,
-    location: c.city,
-    industry: icp.industry,
-    category: icp.industry,
-    size: c.size,
-    headcount: c.headcount,
-    funding: fields.funding ? c.funding : undefined,
-    signals: icp.signals,
-    buyingSignal: fields.signal ? c.buyingSignal : undefined,
-    enrichment: fields.tech ? { techStack: c.techStack, website: `https://${c.domain}` } : {},
-    fitScore: c.fitScore,
-    source: {
-      connectorId,
-      label,
-      url: `https://${connectorId}.example/${c.domain}`,
-      snippet: `${c.companyName} — ${icp.industry} / ${c.city}`,
+    companyName: c.companyName, // 会社名（そのまま）
+    domain: c.domain, // ドメイン（そのまま。名寄せの目印になる）
+    email: fields.email ? c.email : undefined, // メール担当のコネクタだけ埋める（他は空）
+    phone: fields.phone ? c.phone : undefined, // 電話担当のコネクタだけ埋める
+    address: c.city, // 住所（市区名）
+    location: c.city, // 所在地（同じく市区名）
+    industry: icp.industry, // 業種（検索条件のもの）
+    category: icp.industry, // カテゴリ（ここでは業種と同じ）
+    size: c.size, // 企業規模の目安
+    headcount: c.headcount, // 従業員数
+    funding: fields.funding ? c.funding : undefined, // 資金調達担当のコネクタだけ埋める
+    signals: icp.signals, // 買い手シグナルの一覧（検索条件のもの）
+    buyingSignal: fields.signal ? c.buyingSignal : undefined, // シグナル担当のコネクタだけ代表シグナルを埋める
+    enrichment: fields.tech ? { techStack: c.techStack, website: `https://${c.domain}` } : {}, // 技術担当なら技術情報とサイトを、他は空
+    fitScore: c.fitScore, // ICP適合スコア
+    source: { // この候補の出典（どのコネクタが見つけたか）
+      connectorId, // コネクタの識別子
+      label, // コネクタの表示名
+      url: `https://${connectorId}.example/${c.domain}`, // 出典を模した仮のURL
+      snippet: `${c.companyName} — ${icp.industry} / ${c.city}`, // 抜粋（会社名・業種・所在地）
     },
-    fetchedAt: now,
+    fetchedAt: now, // 取得時刻
   };
 }
 
@@ -68,24 +74,25 @@ function makeConnector(opts: {
   offset: number;
   fields: FieldProfile;
 }): DataSourceConnector {
+  // opts の設定をそのままコネクタの各項目に写し、search（探す処理）だけ実装する。
   return {
-    id: opts.id,
-    label: opts.label,
-    markets: opts.markets,
-    costPerCall: opts.costPerCall,
+    id: opts.id, // 識別子
+    label: opts.label, // 表示名
+    markets: opts.markets, // 対応市場
+    costPerCall: opts.costPerCall, // 1回あたりの想定原価
     async search(input: ConnectorSearchInput): Promise<LeadCandidate[]> {
-      const now = Date.now();
+      const now = Date.now(); // 取得時刻を1回だけ用意
       // 目標件数より多めのプールを作り、その中から担当分だけ返す（→ コネクタ間で重複が出る）
       const pool = generateCompanyPool(input.icp, input.planId, Math.max(input.count + 12, 24));
-      const found: LeadCandidate[] = [];
-      for (const c of pool) {
+      const found: LeadCandidate[] = []; // 見つけた候補を貯める入れ物
+      for (const c of pool) { // プールの企業を1社ずつ調べる
         // ドメイン＋offset から安定した値を作り、coverage 未満なら「このコネクタが見つけた」とする
-        const f = stableFraction(c.domain + opts.offset);
-        if (f < opts.coverage) {
-          found.push(toCandidate(c, input.icp, opts.id, opts.label, opts.fields, now));
+        const f = stableFraction(c.domain + opts.offset); // 0〜1の安定した数値（毎回同じ結果）
+        if (f < opts.coverage) { // 担当割合の範囲内なら、このコネクタが見つけたことにする
+          found.push(toCandidate(c, input.icp, opts.id, opts.label, opts.fields, now)); // 候補の形に変換して追加
         }
       }
-      return found;
+      return found; // このコネクタが見つけた候補一覧を返す
     },
   };
 }

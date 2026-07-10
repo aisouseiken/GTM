@@ -7,9 +7,10 @@
  * お気に入り登録や除外の操作もここから行えます。
  */
 
+// useEffect（画面が表示された後に一度だけ処理を実行する仕組み）をReactから取り込む。
 import { useEffect } from "react";
-import type { Lead } from "@/lib/domain/types";
-import { CompanyAvatar } from "./FitBar";
+import type { Lead } from "@/lib/domain/types"; // リード（見込み客）データの「型（決まった形）」の定義。
+import { CompanyAvatar } from "./FitBar"; // 会社名の頭文字アイコン部品（別ファイルから借りる）。
 
 // スコアの高さに応じて文字色を決める関数。80以上=緑 / 50以上=黄土色 / それ未満=赤。
 function tierColor(score: number) {
@@ -63,11 +64,15 @@ export function LeadDrawer({
         className="scroll-thin relative h-full w-full max-w-md overflow-y-auto border-l border-line bg-paper p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* パネル最上部：左に会社アイコン・会社名・サイトURL、右に閉じるボタン */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
+            {/* 会社名の頭文字アイコン */}
             <CompanyAvatar name={lead.companyName} />
             <div>
+              {/* 会社名の見出し */}
               <h3 className="font-serif-display text-xl text-ink">{lead.companyName}</h3>
+              {/* 会社サイトへのリンク（safeUrlで安全化。別タブで開く） */}
               <a
                 href={safeUrl(`https://${lead.domain}`)}
                 target="_blank"
@@ -116,13 +121,17 @@ export function LeadDrawer({
           <div className="space-y-1.5">
             {/* 検証情報が1件も無ければ、その旨を表示 */}
             {lead.verifications.length === 0 && <p className="text-sm text-muted">検証情報なし</p>}
+            {/* 検証結果を1件ずつ取り出し、「対象・提供元」と「結果・スコア」を1行に表示 */}
             {lead.verifications.map((v, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
+                {/* 左：検証した対象（メール/電話）と、検証したサービス名 */}
                 <span className="text-ink-soft">
                   {v.field === "email" ? "メール" : "電話"} · {v.provider}
                 </span>
                 <span className="flex items-center gap-2">
+                  {/* 検証の結果（例：有効/無効など） */}
                   <span className="text-muted">{v.result}</span>
+                  {/* スコアを、点数に応じた色（緑/黄土色/赤）で表示 */}
                   <span className="tabular-nums font-medium" style={{ color: tierColor(v.score) }}>
                     {v.score}
                   </span>
@@ -136,6 +145,7 @@ export function LeadDrawer({
         {/* この情報をどこから得たかの出典リンク集。クリックすると元のページを開ける */}
         <Section title="出典">
           <div className="space-y-1.5">
+            {/* 出典を1件ずつ取り出し、クリックで元ページを開けるリンクにする */}
             {lead.sources.map((s, i) => (
               <a
                 key={i}
@@ -144,7 +154,9 @@ export function LeadDrawer({
                 rel="noopener noreferrer"
                 className="block rounded-lg border border-line px-3 py-2 text-sm hover:border-brand/50"
               >
+                {/* 出典の見出し（例：サイト名） */}
                 <span className="font-medium text-ink">{s.label}</span>
+                {/* 出典の抜粋文（長い場合は末尾を省略表示） */}
                 <span className="mt-0.5 block truncate text-xs text-muted">{s.snippet}</span>
               </a>
             ))}

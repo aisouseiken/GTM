@@ -25,20 +25,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   // ポータルから戻ってくる先の請求ページURLを組み立てる
+  // 今アクセスされているサイトの土台部分のURL（例: https://example.com）を取り出す
   const origin = new URL(req.url).origin;
+  // 顧客ポータルを閉じたあとに戻ってくる「請求ページ」のURLを組み立てる
   const billingUrl = `${origin}/app/w/${workspaceId}/billing`;
+  // Stripe（決済サービス）に接続する窓口を用意する（鍵が無ければ null＝モック動作）
   const stripe = getStripe();
+  // このワークスペースの契約情報を取り出す（顧客IDを確認するため）
   const sub = getSubscription(workspaceId);
 
   // Stripeが使えて、かつ顧客IDがあれば、本物の顧客ポータルセッションを作る
   if (stripe && sub?.stripeCustomerId) {
+    // 顧客ポータル（契約管理画面）を1回分作成する
     const session = await stripe.billingPortal.sessions.create({
-      customer: sub.stripeCustomerId,
-      return_url: billingUrl,
+      customer: sub.stripeCustomerId, // どの顧客の管理画面を開くか
+      return_url: billingUrl, // 管理画面を閉じたときに戻る先のURL
     });
+    // 作った管理画面のURLを返し、画面側でそこへ移動させる
     return NextResponse.json({ url: session.url, mode: "stripe" });
   }
 
   // 鍵未設定＝モック
+  // 決済が未設定のとき：本物の管理画面は作れないので、モック（お試し）のURLを返す
   return NextResponse.json({ url: `${billingUrl}?portal=mock`, mode: "mock" });
 }

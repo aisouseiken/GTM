@@ -80,13 +80,16 @@ function useInView<T extends HTMLElement>() {
 // 利用者が「動きを減らす」設定を有効にしているかを調べる部品。true ならアニメを止めて配慮します。
 function useReducedMotion() {
   return useSyncExternalStore(
+    // 1つ目：設定変更を知らせてもらう「見張り」を仕掛ける
     (cb) => {
+      // matchMedia = ブラウザに「今この条件（動きを減らす設定）にあてはまる？」と尋ねる仕組み
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-      mq.addEventListener("change", cb);
-      return () => mq.removeEventListener("change", cb);
+      mq.addEventListener("change", cb); // 設定が変わったら再チェックするよう登録
+      return () => mq.removeEventListener("change", cb); // 後始末：見張りを解除
     },
+    // 2つ目：今この瞬間の設定値（動きを減らす設定なら true）
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    () => false // サーバー側スナップショット
+    () => false // サーバー側スナップショット（ブラウザが無い場所での初期値。動かす扱い）
   );
 }
 
@@ -229,16 +232,20 @@ export function AnimatedLeadSearchDemo() {
         aria-hidden
         className="overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_20px_60px_-30px_rgba(0,0,0,0.3)]"
       >
+        {/* 全体を2カラムに分ける：左320px＝チャット、右＝結果テーブル（画面が狭いと縦積み） */}
         <div className="grid md:grid-cols-[320px_1fr]">
           {/* ==== 左：チャット ==== */}
           <div className="flex min-h-[300px] flex-col border-b border-line bg-cream-100/40 p-4 md:min-h-[440px] md:border-b-0 md:border-r">
+            {/* チャットの見出し（プロジェクト名のような小さなラベル） */}
             <div className="mb-3 text-xs text-muted">歯科クリニック開拓 · JP</div>
 
-            {/* 入力吹き出し（タイピング） */}
+            {/* 入力吹き出し（タイピング）：ユーザーが打っている風の文字と点滅カーソルを表示 */}
             <div className="rounded-xl bg-paper p-3 text-sm leading-relaxed text-ink shadow-sm">
+              {/* 現在タイピング中（または完成形）の文字列。改行や折り返しを保つ設定付き */}
               <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {dTyped}
               </span>
+              {/* 点滅するカーソル（縦棒）。動きを減らす設定なら非表示にする */}
               <span
                 className={`ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[3px] bg-ink align-baseline ${
                   reduced ? "hidden" : "animate-caret"
@@ -254,7 +261,9 @@ export function AnimatedLeadSearchDemo() {
                 transform: dShowReply ? "translateY(0)" : "translateY(10px)",
               }}
             >
+              {/* 発見件数（カウントアップ中の数字）。toLocaleString で3桁ごとにカンマを付ける（例：1,240） */}
               <span className="font-medium text-ink">{dCount.toLocaleString()}</span>
+              {/* 数字のうしろに続く固定の説明文 */}
               {REPLY_SUFFIX}
             </div>
 
@@ -335,20 +344,22 @@ export function AnimatedLeadSearchDemo() {
                           transform: shown ? "translateY(0)" : "translateY(8px)",
                         }}
                       >
-                        {/* FIT：バーが 0 → 幅へ伸びる */}
+                        {/* FIT列：適合度を表す横バー。行が出るとき幅0からスコアに応じた幅へ伸びる */}
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
+                            {/* バーの入れ物（はみ出しは隠す） */}
                             <span className="inline-block h-3 overflow-hidden rounded-sm">
+                              {/* 実際の色付きバー。幅はスコア×0.34（最低12px）、色はスコアで3段階に変える */}
                               <span
                                 className="block h-3 rounded-sm transition-[width] duration-700 ease-out"
                                 style={{
                                   width: shown ? `${Math.max(12, row.score * 0.34)}px` : "0px",
                                   background:
                                     row.score >= 88
-                                      ? "#7bc47f"
+                                      ? "#7bc47f" // 高スコア＝濃い緑
                                       : row.score >= 74
-                                        ? "#a7cf7d"
-                                        : "#cfe08a",
+                                        ? "#a7cf7d" // 中スコア＝黄緑
+                                        : "#cfe08a", // 低スコア＝薄い黄緑
                                 }}
                               />
                             </span>
@@ -360,18 +371,22 @@ export function AnimatedLeadSearchDemo() {
                             </span>
                           </div>
                         </td>
+                        {/* 会社列：会社ロゴ代わりのアイコン＋会社名 */}
                         <td className="px-3 py-2">
                           <span className="flex items-center gap-2">
                             <CompanyAvatar name={row.name} />
                             <span className="text-ink">{row.name}</span>
                           </span>
                         </td>
+                        {/* 業種列（画面が狭いと隠す） */}
                         <td className="hidden px-3 py-2 text-ink-soft sm:table-cell">
                           {row.cat}
                         </td>
+                        {/* 従業員数列（画面がさらに広いときだけ表示） */}
                         <td className="hidden px-3 py-2 text-ink-soft md:table-cell">
                           {row.hc}
                         </td>
+                        {/* シグナル列：購買の兆し（採用強化中・広告出稿中など） */}
                         <td className="px-3 py-2 text-ink-soft">{row.sig}</td>
                       </tr>
                     );

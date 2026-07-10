@@ -29,24 +29,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   // 決済後に戻ってくる請求ページのURLを組み立てる
+  // 今アクセスされているサイトの土台部分のURL（例: https://example.com）を取り出す
   const origin = new URL(req.url).origin;
+  // 決済が終わったあとに戻ってくる「請求ページ」のURLを組み立てる
   const billingUrl = `${origin}/app/w/${workspaceId}/billing`;
+  // Stripe（決済サービス）に接続する窓口を用意する（鍵が無ければ null＝モック動作）
   const stripe = getStripe();
+  // 選ばれたプランに対応する「価格ID」（Stripe側で決めた料金の識別番号）を取り出す
   const priceId = priceIdForPlan(plan);
 
   // 鍵・価格が揃っていれば本番の Checkout セッションを作成
   if (stripe && priceId) {
     // 既存の契約情報があれば、その顧客IDを引き継いで決済セッションを作る
+    // このワークスペースの過去の契約情報を取り出す（顧客IDを引き継ぐため）
     const sub = getSubscription(workspaceId);
+    // 決済ページ（Checkout）を1回分作成する。以下はその設定内容
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      customer: sub?.stripeCustomerId,
-      client_reference_id: workspaceId,
-      metadata: { workspaceId, plan },
-      subscription_data: { metadata: { workspaceId, plan } },
-      success_url: `${billingUrl}?checkout=success`,
-      cancel_url: `${billingUrl}?checkout=cancel`,
+      mode: "subscription", // 継続課金（毎月の定期支払い）として契約する
+      line_items: [{ price: priceId, quantity: 1 }], // 買う対象：この価格IDを1つ
+      customer: sub?.stripeCustomerId, // 既存の顧客ならその顧客IDを引き継ぐ（無ければ新規）
+      client_reference_id: workspaceId, // どのワークスペースの決済かを紐づける参照ID
+      metadata: { workspaceId, plan }, // 付帯情報（あとで通知処理で参照するため）
+      subscription_data: { metadata: { workspaceId, plan } }, // 契約自体にも同じ付帯情報を付ける
+      success_url: `${billingUrl}?checkout=success`, // 支払い成功時に戻る先のURL
+      cancel_url: `${billingUrl}?checkout=cancel`, // 支払いをやめたときに戻る先のURL
     });
     // 決済ページのURLを返し、画面側でそこへ移動させる
     return NextResponse.json({ url: session.url, mode: "stripe" });
@@ -63,9 +69,10 @@ export async function POST(req: Request) {
   // ★冪等化：同じワークスペース×プラン×同じ月では二度と付与しない（連打による無限増殖を防止）。
   // ★冪等キーは「ワークスペース×月」（プランを含めない）。
   //   プランを往復（starter→pro→starter）してもその月は1回しか付与しない＝無限増殖を完全に防ぐ。
-  const ym = new Date().toISOString().slice(0, 7); // 例: "2026-07"
-  setWorkspacePlan(workspaceId, plan);
-  grantMonthlyCredits(workspaceId, plan, `mock:${workspaceId}:${ym}`);
-  upsertSubscription(workspaceId, { plan, status: "active" });
+  const ym = new Date().toISOString().slice(0, 7); // 例: "2026-07"（今の年と月を取り出す）
+  setWorkspacePlan(workspaceId, plan); // 契約プランを選ばれたプランに設定する
+  grantMonthlyCredits(workspaceId, plan, `mock:${workspaceId}:${ym}`); // 当月分のクレジットを付与（第3引数は二重付与を防ぐ合言葉）
+  upsertSubscription(workspaceId, { plan, status: "active" }); // 契約情報を「有効」で保存・更新する
+  // モックのURLを返す（画面側は決済ページに飛ばず、その場でプラン切替済みとして扱う）
   return NextResponse.json({ url: `${billingUrl}?checkout=mock`, mode: "mock" });
 }

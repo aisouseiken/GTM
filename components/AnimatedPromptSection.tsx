@@ -177,9 +177,11 @@ export function AnimatedPromptSection({ compact = false }: { compact?: boolean }
   // 登場アニメーション（inView で1回だけ）
   // 画面に入ったとき、または動きを減らす設定のときに「表示済み」の見た目にする
   const revealed = inView || reduced;
+  // 各パーツを少しずつ時間差で出すための「遅らせる時間」を指定する小さな道具（ミリ秒）。
   const revealStyle = (delayMs: number) => ({
     transitionDelay: `${delayMs}ms`,
   });
+  // 表示済みなら「出現後」の見た目クラス、まだなら「出現前」のクラスを付ける。
   const revealCls = revealed ? "reveal-init reveal-in" : "reveal-init";
 
   // プロンプト入力欄本体（compact / 通常 で共有）
@@ -190,13 +192,17 @@ export function AnimatedPromptSection({ compact = false }: { compact?: boolean }
         aria-hidden
         className="mb-3 flex flex-wrap items-center justify-center gap-2 text-sm"
       >
+        {/* 1つ目のチップ：吹き出しアイコン＋「顧客プロフィールを入力」の文言 */}
         <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-paper px-3 py-1.5 font-medium text-ink shadow-sm">
+          {/* svg = 絵記号。この path はチャット吹き出しの形を描いている */}
           <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current text-ink-soft">
             <path d="M4 4h16v11H7l-3 3V4Zm3 4v2h10V8H7Zm0 3v2h7v-2H7Z" />
           </svg>
           顧客プロフィールを入力
         </span>
+        {/* 2つ目のチップ：地球アイコン＋「ドメインを使う」＋Autoバッジ */}
         <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-ink-soft">
+          {/* この path は地球儀（グローバル）の形を描いている */}
           <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
             <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2c1.7 0 3.3 1.9 4 4.7H8C8.7 5.9 10.3 4 12 4Zm-5.7 4.7H4.6A8 8 0 0 1 9 4.6a11 11 0 0 0-2.7 4.1Zm-2 2h2.2c-.1.7-.2 1.5-.2 2.3s.1 1.6.2 2.3H4.3a8 8 0 0 1 0-4.6Zm2.3 6.6h1.7a11 11 0 0 0 2.7 4.1 8 8 0 0 1-4.4-4.1Zm5.4 4.1c-1.7 0-3.3-1.9-4-4.1h8c-.7 2.2-2.3 4.1-4 4.1Zm4.6-6.4H8.4c-.1-.7-.2-1.4-.2-2.3s.1-1.6.2-2.3h7.2c.1.7.2 1.4.2 2.3s-.1 1.6-.2 2.3Zm.5 6.4a11 11 0 0 0 2.7-4.1H20a8 8 0 0 1-4.4 4.1Zm2.9-6.4c.1-.7.2-1.5.2-2.3s-.1-1.6-.2-2.3h2.2a8 8 0 0 1 0 4.6h-2.2Z" />
           </svg>
@@ -230,14 +236,17 @@ export function AnimatedPromptSection({ compact = false }: { compact?: boolean }
 
         {/* 下部：左＝添付アイコン（装飾）／右＝送信ボタン（装飾） */}
         <div className="mt-4 flex items-end justify-between">
+          {/* 左：クリップ（添付）アイコン。見た目だけで押しても何も起きない */}
           <span
             aria-hidden
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted"
           >
+            {/* この path はゼムクリップの形を描いている */}
             <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
               <path d="M16.5 6.5 8 15a3 3 0 1 0 4.24 4.24l7.07-7.07a5 5 0 1 0-7.07-7.07L4.9 12.37a.75.75 0 0 0 1.06 1.06l7.34-7.33a3.5 3.5 0 1 1 4.95 4.95l-7.07 7.07a1.5 1.5 0 1 1-2.12-2.12l8.5-8.51-1.06-1.06Z" />
             </svg>
           </span>
+          {/* 右：送信ボタン（上向き矢印）。入力が完了した瞬間だけ少し拡大し黒く強調する演出 */}
           <span
             aria-hidden
             className={`inline-flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200 ${
@@ -246,6 +255,7 @@ export function AnimatedPromptSection({ compact = false }: { compact?: boolean }
                 : "bg-cream-100 text-ink-soft"
             }`}
           >
+            {/* この path は上向きの矢印（送信）を描いている */}
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
               <path d="M12 4.5 5.5 11l1.4 1.4 4.1-4.1V19h2V8.3l4.1 4.1L18.5 11 12 4.5Z" />
             </svg>
@@ -265,7 +275,9 @@ export function AnimatedPromptSection({ compact = false }: { compact?: boolean }
   // compact モードのときは、余計な装飾を省いて入力欄だけを返す
   if (compact) {
     return (
+      // compact 版：見出しや背景を付けず、入力欄だけを返す（他の場所に埋め込む用）
       <section ref={ref} aria-label="AIプロンプトのデモ" className="mx-auto w-full max-w-4xl">
+        {/* 少し遅れて（120ミリ秒後）ふわっと出す入れ物。中身は上で組み立てた入力欄 */}
         <div
           className={`mx-auto w-[92%] max-w-[900px] ${revealCls}`}
           style={revealStyle(120)}
@@ -276,6 +288,7 @@ export function AnimatedPromptSection({ compact = false }: { compact?: boolean }
     );
   }
 
+  // 通常版：見出し・小ラベル・背景の光まで含めたセクション全体を返す
   return (
     <section
       ref={ref}

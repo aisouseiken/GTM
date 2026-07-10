@@ -53,8 +53,9 @@ export default async function BillingPage({
           {/* plans：選べるプランの一覧。それぞれ料金と変更ボタンを表示 */}
           <h2 className="mt-10 font-serif-display text-xl text-ink">プランを選ぶ</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-4">
+            {/* プランの一覧を1つずつ取り出して、それぞれをカード（枠）として並べて表示 */}
             {PLAN_ORDER.map((p) => {
-              const info = PLAN_INFO[p]; // そのプランの情報。
+              const info = PLAN_INFO[p]; // そのプランの情報（名前・料金・毎月のクレジット数）。
               const current = ws.plan === p; // 今契約中のプランかどうか。
               return (
                 <div
@@ -63,12 +64,15 @@ export default async function BillingPage({
                     p === "pro" ? "border-brand" : "border-line"
                   }`}
                 >
+                  {/* プラン名（例：Free / Starter / Pro / Scale）を表示 */}
                   <div className="font-serif-display text-lg text-ink">{info.label}</div>
                   <div className="mt-1 text-2xl font-semibold text-ink">
+                    {/* 料金が0円なら「¥0」、それ以外は円表示に整形して表示 */}
                     {info.priceJpy === 0 ? "¥0" : formatJpy(info.priceJpy)}
                     <span className="text-xs font-normal text-muted">/月</span>
                   </div>
                   <div className="mt-2 text-sm text-ink-soft">
+                    {/* 毎月もらえるクレジット数を、3桁区切り（例：1,000）で表示 */}
                     {info.monthlyCredits.toLocaleString()} クレジット/月
                   </div>
                   <PlanChangeButton

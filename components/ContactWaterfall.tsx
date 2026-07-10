@@ -44,8 +44,10 @@ function ProviderIcon({ name, i }: { name: string; i: number }) {
   return (
     <span
       className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-bold text-white shadow-sm"
+      // 背景は2色のグラデーション。並び順(i)に応じて色候補から2色を選び、項目ごとに違う見た目にする。
       style={{ background: `linear-gradient(135deg, ${SQUARE[i % SQUARE.length]}, ${SQUARE[(i + 2) % SQUARE.length]})` }}
     >
+      {/* プロバイダ名の先頭1文字を表示 */}
       {name[0]}
     </span>
   );
@@ -56,6 +58,7 @@ function HeaderIcon({ kind }: { kind: "email" | "phone" }) {
   return (
     <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
       <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+        {/* 種類がメールなら封筒の図形、そうでなければ受話器の図形を描く */}
         {kind === "email" ? (
           <path d="M3 5h18v14H3V5Zm2 2v.5l7 4.5 7-4.5V7H5Zm14 2.9-6.5 4.2a1 1 0 0 1-1 0L5 9.9V17h14V9.9Z" />
         ) : (
@@ -70,7 +73,7 @@ function HeaderIcon({ kind }: { kind: "email" | "phone" }) {
 function WaterfallCard({ w }: { w: Waterfall }) {
   return (
     <div className="rounded-2xl border border-line bg-paper p-6">
-      {/* ヘッダ */}
+      {/* ヘッダ：左に種類アイコンと見出し、右に総プロバイダ数 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <HeaderIcon kind={w.kind} />
@@ -79,23 +82,30 @@ function WaterfallCard({ w }: { w: Waterfall }) {
         <span className="font-mono text-xs text-muted">{w.total} プロバイダ</span>
       </div>
 
+      {/* ヘッダと本文を分ける区切り線 */}
       <div className="mt-4 border-t border-line/70" />
 
       {/* プロバイダ列（先頭4件を表示、総数はバッジで示す） */}
       <ol className="mt-2">
+        {/* プロバイダ名を1つずつ取り出し、番号付きの行にして並べる */}
         {w.providers.map((p, i) => (
           <li
             key={p}
             className="flex items-center gap-3 border-b border-line/50 py-3 last:border-0"
           >
+            {/* 左端の連番（i は0から始まるので +1 して1始まりにする） */}
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-line text-xs text-muted">
               {i + 1}
             </span>
+            {/* 頭文字アイコン */}
             <ProviderIcon name={p} i={i} />
+            {/* プロバイダ名 */}
             <span className="text-ink">{p}</span>
           </li>
         ))}
+        {/* 表示しきれない残りのプロバイダ数をまとめて示す最後の行 */}
         <li className="flex items-center gap-3 py-3 text-sm text-muted">
+          {/* 「+残数」の点線バッジ（総数 − 表示した件数） */}
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-line text-[11px]">
             +{w.total - w.providers.length}
           </span>
@@ -103,10 +113,13 @@ function WaterfallCard({ w }: { w: Waterfall }) {
         </li>
       </ol>
 
-      {/* フッタ */}
+      {/* フッタ：補足文と保証ラベル */}
       <div className="mt-2 border-t border-line/70 pt-4">
+        {/* このカードの補足説明文 */}
         <p className="text-sm text-ink-soft">{w.note}</p>
+        {/* 「検証済み」を示すチェックマーク付きの保証ラベル */}
         <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1.5 text-sm font-medium text-brand">
+          {/* チェックマーク（レ点）の図形 */}
           <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
             <path d="M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.5 7.6 19.1 6.2z" />
           </svg>
@@ -123,14 +136,17 @@ export function ContactWaterfall() {
     // id="data" はナビの「Partners」リンクからここへスクロールしてくるための目印。
     <section id="data" className="scroll-mt-20 border-t border-line/60 py-20">
       <div className="mx-auto max-w-6xl px-6">
+        {/* セクションの大見出し */}
         <h2 className="font-serif-display text-3xl text-ink sm:text-4xl">
           連絡先データは、さらに一歩先へ。
         </h2>
+        {/* 見出し下の説明文 */}
         <p className="mt-3 max-w-2xl text-ink-soft">
           メールは最大5、電話は最大9のプロバイダを重ねたウォーターフォール検証を通過。
           テーブルに載る前に、すべての結果を検証します。
         </p>
 
+        {/* メール用・電話用の2枚のカードを横に並べる（画面が狭いと縦積み） */}
         <div className="mt-10 grid gap-5 md:grid-cols-2">
           <WaterfallCard w={EMAIL} />
           <WaterfallCard w={PHONE} />

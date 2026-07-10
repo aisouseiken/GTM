@@ -3,6 +3,8 @@
 // ※「"use client"」= ブラウザ側で動く部品（スクロール検知やアニメーションのため）。
 "use client";
 
+// React の機能を読み込みます。
+// useEffect: 画面表示後に動く処理 / useRef: 要素や値を保持する箱 / useState: 状態（画面が覚えている値）/ useSyncExternalStore: OS設定など外部の状態を購読する
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /**
@@ -13,12 +15,18 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 // true のときはアニメーションをやめて、文章を最初から全部表示する。
 function useReducedMotion() {
   return useSyncExternalStore(
+    // 1つ目：設定が変わったら知らせてもらうための「見張り」を仕掛ける処理。
     (cb) => {
+      // matchMedia = ブラウザに「この条件（動きを減らす設定）に今あてはまる？」と尋ねる仕組み。
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      // 設定が切り替わったら再チェックするよう見張りを登録する。
       mq.addEventListener("change", cb);
+      // 後片付け：見張りを解除する（部品が消えるときに呼ばれる）。
       return () => mq.removeEventListener("change", cb);
     },
+    // 2つ目：今この瞬間の設定値（動きを減らす設定なら true）を返す。
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    // 3つ目：サーバー側（ブラウザが無い場所）での初期値。ここでは常に false（動かす）扱い。
     () => false
   );
 }
@@ -49,19 +57,20 @@ export function TypingReveal({
   // ここは「その部分が画面に見えたか」を監視する処理。
   // IntersectionObserver = 要素が画面内に入ったことを教えてくれるブラウザの仕組み。
   useEffect(() => {
-    const el = ref.current;
-    if (!el || inView) return;
+    const el = ref.current; // 目印がついている実際の要素を取り出す。
+    if (!el || inView) return; // 要素が無い、またはすでに見えたと判定済みなら何もしない。
     const ob = new IntersectionObserver(
       (entries) => {
+        // 要素が4割（0.4）以上見えたら「見えた」と判断し、以後は監視をやめる。
         if (entries[0]?.isIntersecting) {
           setInView(true);
           ob.disconnect();
         }
       },
-      { threshold: 0.4 }
+      { threshold: 0.4 } // 4割見えたら反応する設定。
     );
-    ob.observe(el);
-    return () => ob.disconnect();
+    ob.observe(el); // この要素の監視を開始する。
+    return () => ob.disconnect(); // 後片付け：部品が消えるとき監視をやめる。
   }, [inView]);
 
   // 「画面に見えていて」かつ「動きを減らす設定でない」ときだけアニメーションを実行する。
@@ -101,9 +110,11 @@ export function TypingReveal({
   const visible = reduced ? text : shown;
 
   return (
+    // 一番外側の入れ物。ref（目印）をつけて「画面に見えたか」の監視対象にする。
     <span ref={ref} className={className}>
-      {/* 実際に見える部分。打っている途中の文字列を表示する */}
+      {/* 実際に見える部分。打っている途中の文字列を表示する（aria-hidden=読み上げソフトには読ませない） */}
       <span aria-hidden="true">
+        {/* 現在の表示文字列（途中まで、または全文） */}
         {visible}
         {/* 打っている最中だけ、点滅するカーソル（縦棒）を末尾に表示する */}
         {enabled && !done && (

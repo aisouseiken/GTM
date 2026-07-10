@@ -6,9 +6,9 @@
  */
 
 import Link from "next/link"; // ページ間を移動するためのリンク部品（Next.js）
-import { Logo } from "./Logo";
+import { Logo } from "./Logo"; // 自作のロゴ部品（左上や上部ヘッダーに表示）
 import { logoutAction } from "@/app/actions/auth"; // ログアウト処理（サーバー側で実行される）
-import type { Workspace } from "@/lib/domain/types";
+import type { Workspace } from "@/lib/domain/types"; // ワークスペース情報の「型（決まった形）」の定義
 
 // 左端の縦メニュー（レール）の項目一覧。href=リンク先 / label=名前 / icon=アイコンの図形データ
 const RAIL = [
@@ -32,11 +32,14 @@ export function AppShell({
 }) {
   const base = `/app/w/${workspace.id}`; // 各リンクの共通の先頭部分（このワークスペース用のURL）
   return (
+    // 画面全体を横並び（左メニュー＋右本体）にする一番外側の枠。高さは画面いっぱい。
     <div className="flex h-screen overflow-hidden bg-cream">
       {/* left rail（左端の縦メニュー） */}
       <aside className="flex w-14 flex-col items-center gap-1 border-r border-line bg-cream-100/60 py-3">
+        {/* 一番上のロゴマーク。クリックするとアプリのトップへ戻る */}
         <div className="mb-2">
           <Link href="/app" className="inline-flex h-8 w-8 items-center justify-center">
+            {/* ロゴ図形（4枚の三角形を組み合わせた折り紙風マーク）をSVGで描く */}
             <svg viewBox="0 0 32 32" className="h-7 w-7">
               <path d="M16 3 L29 16 L16 12 Z" fill="#ff2e93" />
               <path d="M16 3 L3 16 L16 12 Z" fill="#ff77b8" />
@@ -45,19 +48,22 @@ export function AppShell({
             </svg>
           </Link>
         </div>
-        {/* メニュー項目を1つずつボタンとして並べる */}
+        {/* メニュー項目の一覧を1つずつ取り出し、それぞれをボタンとして並べる */}
         {RAIL.map((r) => {
           // この項目が今開いている画面かどうか（href が空なら「検索」画面とみなす）
           const isActive = active === (r.href || "search");
           return (
+            // メニュー1個ぶんのリンク。押すとその画面へ移動する。
             <Link
-              key={r.label}
-              href={base + r.href}
-              title={r.label}
+              key={r.label} // 各項目を見分けるための目印。
+              href={base + r.href} // 飛び先URL（共通の先頭＋各項目のパス）。
+              title={r.label} // マウスを乗せたときに出る説明文。
+              // 今開いている画面なら白く目立たせ、そうでなければ控えめ色にする。
               className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
                 isActive ? "bg-paper text-ink shadow-sm" : "text-muted hover:bg-paper/60 hover:text-ink"
               }`}
             >
+              {/* この項目のアイコン図形を描く */}
               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                 <path d={r.icon} />
               </svg>
@@ -81,10 +87,12 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 上部ヘッダー: 左にロゴとワークスペース名、右にクレジット残高を表示 */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-line bg-cream/80 px-5 backdrop-blur">
+          {/* ヘッダー左側：ロゴ → 区切りの「/」→ ワークスペース名 → 市場ラベル */}
           <div className="flex items-center gap-3">
             <Logo href="/app" />
             <span className="text-muted">/</span>
             <span className="text-sm text-ink">{workspace.name}</span>
+            {/* この作業スペースの対象市場を示す小さな丸バッジ */}
             <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">
               {workspace.market}
             </span>

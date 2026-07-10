@@ -29,18 +29,18 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // 検索プランから新しいジョブ（実行記録）を作って保存し、返す。
 export function createJob(plan: SearchPlan): Job {
   const job: Job = {
-    id: id("job"),
-    workspaceId: plan.workspaceId,
-    searchPlanId: plan.id,
-    status: "queued", // 最初は実行待ち
-    resultCount: 0,
-    creditsSpent: 0,
-    costInternal: 0,
-    events: [],
-    startedAt: Date.now(),
+    id: id("job"), // ジョブを識別する新しいID
+    workspaceId: plan.workspaceId, // 所有する利用者（ワークスペース）
+    searchPlanId: plan.id, // 元になった検索プランのID
+    status: "queued", // 最初は実行待ち（queued）
+    resultCount: 0, // 取得できた件数（最初は0）
+    creditsSpent: 0, // 消費クレジット（最初は0）
+    costInternal: 0, // 内部原価（最初は0）
+    events: [], // 進捗イベントの履歴（最初は空）
+    startedAt: Date.now(), // 開始時刻（今）
   };
-  saveJob(job);
-  return job;
+  saveJob(job); // 作ったジョブを保存
+  return job; // 呼び出し元に返す
 }
 
 // 進捗イベントを1件作り、ジョブに記録し、画面側（onEvent）にも通知するための共通関数。
@@ -60,7 +60,7 @@ export async function runSearchJob(
   signal?: AbortSignal // クライアントが接続を切ったら中断するための合図
 ): Promise<void> {
   const { getJob } = await import("@/lib/data/store"); // 必要になった時点で読み込む（動的インポート）
-  const job = getJob(jobId);
+  const job = getJob(jobId); // IDから対象のジョブを取り出す
   if (!job) return; // ジョブが見つからなければ何もしない
   // ★二重課金防止：まだ実行前(queued)のジョブだけを走らせる。
   //   SSEはGETなので再読込・再接続で何度も叩かれうる。すでに実行中/完了/失敗なら即終了する。
@@ -80,19 +80,19 @@ export async function runSearchJob(
     saveJob(job);
     emit(job, { type: "queued", message: "ジョブを開始しました" }, onEvent);
 
-    // 1) リスト抽出：コネクタ層から候補を集める（最新化キャッシュを活用）
-    const target = Math.min(plan.estimatedLeads, 40); // 目標件数（多くても40件まで）
-    const market = plan.icp.market;
+    // 1) リスト抽出：コネクタ層（データ取得先）から候補を集める（最新化キャッシュを活用）
+    const target = Math.min(plan.estimatedLeads, 40); // 目標件数（多くても40件までに制限）
+    const market = plan.icp.market; // 対象市場（日本 or グローバル）
     const sig = signatureOf(job.workspaceId, plan.icp, target); // 検索条件の署名（利用者ごとに分離）
 
     let candidates: LeadCandidate[]; // 各コネクタが見つけた候補（重複を含む）
-    const cached = getFreshCandidates(sig); // 新鮮なキャッシュがあるか？
+    const cached = getFreshCandidates(sig); // 新鮮なキャッシュ（前回の結果の一時保存）があるか？
 
     if (cached) {
       // 最新化：同条件かつ新鮮なので、取り直さずキャッシュを再利用（速い・原価節約）
-      candidates = cached;
-      const age = cacheAgeMinutes(sig);
-      await sleep(180);
+      candidates = cached; // キャッシュの候補をそのまま使う
+      const age = cacheAgeMinutes(sig); // 何分前に取得したものかを画面表示用に取得
+      await sleep(180); // 進捗が見えるように少しだけ待つ
       emit(
         job,
         {
@@ -104,12 +104,12 @@ export async function runSearchJob(
       );
     } else {
       // キャッシュが無い/古い → 各コネクタで実際に抽出し、候補を積み上げる
-      candidates = [];
-      const connectors = getConnectors(market);
-      for (const c of connectors) {
+      candidates = []; // 候補をためる空の箱から開始
+      const connectors = getConnectors(market); // 市場に対応するコネクタ一覧を取得
+      for (const c of connectors) { // コネクタを1つずつ順番に実行
         await sleep(260); // 検索している雰囲気を出すため少し待つ
-        const found = await c.search({ icp: plan.icp, count: target, planId: plan.id });
-        candidates.push(...found);
+        const found = await c.search({ icp: plan.icp, count: target, planId: plan.id }); // このコネクタで検索（あとで結果が返る＝非同期）
+        candidates.push(...found); // 見つかった候補を全体の箱に足し込む
         emit(
           job,
           {
@@ -120,15 +120,15 @@ export async function runSearchJob(
           onEvent
         );
       }
-      setCandidates(sig, candidates); // 次回の最新化のためキャッシュに保存
+      setCandidates(sig, candidates); // 次回同じ条件で来たときに再利用できるようキャッシュに保存
     }
 
     // 2) リスト元の最適化：名寄せ・重複排除・出典マージで1社に統合する
     //    ★オプトアウト抑制：除外申請のあったメール/ドメインはリードから取り除く（法令・プライバシー対応）
-    await sleep(220);
-    const merged = resolveCandidates(candidates, job.workspaceId, job.id)
-      .filter((l) => !isSuppressed(l.email))
-      .slice(0, target);
+    await sleep(220); // 進捗が見えるように少し待つ
+    const merged = resolveCandidates(candidates, job.workspaceId, job.id) // 名寄せ（同じ会社をまとめる）
+      .filter((l) => !isSuppressed(l.email)) // 除外申請のあったメールのリードを取り除く
+      .slice(0, target); // 目標件数までに絞り込む
     emit(
       job,
       {
@@ -145,11 +145,11 @@ export async function runSearchJob(
     saveJob(job);
     emit(job, { type: "verifying", message: "連絡先を検証中 …" }, onEvent);
 
-    const wallet = getWallet(job.workspaceId); // クレジット残高の財布を取得
-    let creditsSpent = 0; // このジョブで消費した合計クレジット
-    const saved: Lead[] = []; // 保存できたリード
+    const wallet = getWallet(job.workspaceId); // クレジット残高の財布（利用者の残高情報）を取得
+    let creditsSpent = 0; // このジョブで消費した合計クレジット（0から数え始める）
+    const saved: Lead[] = []; // 保存できたリードをためる箱
 
-    for (const lead of merged) { // リードを1件ずつ検証・保存
+    for (const lead of merged) { // まとめたリードを1件ずつ検証・保存していく
       // ★クライアントが接続を切ったら中断（これ以上クレジットを消費しない）
       if (signal?.aborted) {
         job.status = "partial";
@@ -162,27 +162,27 @@ export async function runSearchJob(
         job.status = "partial"; // 残高が尽きたら途中まで（部分完了）で終了
         break;
       }
-      const { lead: verified, creditsUsed } = verifyLead(lead); // 検証して信頼度を確定
+      const { lead: verified, creditsUsed } = verifyLead(lead); // 検証して信頼度を確定（成功した検証の数も受け取る）
       // 検証成功分を課金（発見1 + 検証分）
-      const cost = 1 + creditsUsed; // 発見コスト1 ＋ 検証で成功した分
+      const cost = 1 + creditsUsed; // 発見コスト1 ＋ 検証で成功した分の合計が、このリードの請求額
       const ok = spendCredits( // クレジットを実際に消費（残高から引く）
-        job.workspaceId,
-        cost,
-        "verify",
-        `${verified.companyName} を取得・検証`,
-        job.id
+        job.workspaceId, // どの利用者の残高から引くか
+        cost, // 引く金額
+        "verify", // 用途の種別（検証）
+        `${verified.companyName} を取得・検証`, // 明細に残す説明文
+        job.id // どのジョブによる消費か
       );
       if (!ok) { // 消費に失敗（残高不足など）なら部分完了で終了
-        job.status = "partial";
-        break;
+        job.status = "partial"; // 途中まで（部分完了）に設定
+        break; // ループを抜ける
       }
-      creditsSpent += cost; // 消費合計を加算
-      saveLead(verified); // リードを保存
-      saved.push(verified);
+      creditsSpent += cost; // 消費合計に今回分を加算
+      saveLead(verified); // 検証済みリードを保存
+      saved.push(verified); // 保存できた一覧にも追加
       job.resultCount = saved.length; // 取得件数を更新
       job.creditsSpent = creditsSpent; // 消費クレジットを更新
-      job.costInternal = Number((creditsSpent * 0.6).toFixed(2)); // 原価モデル（消費の6割を原価とみなす）
-      saveJob(job);
+      job.costInternal = Number((creditsSpent * 0.6).toFixed(2)); // 原価モデル（消費の6割を原価とみなす。小数2桁に整える）
+      saveJob(job); // ここまでの進捗を保存
       emit(
         job,
         {
@@ -196,9 +196,9 @@ export async function runSearchJob(
     }
 
     // 途中打ち切り（partial）でなければ、正常に完了（done）とする
-    if (job.status !== "partial") job.status = "done";
+    if (job.status !== "partial") job.status = "done"; // 部分完了でなければ「完了」に
     job.finishedAt = Date.now(); // 終了時刻を記録
-    saveJob(job);
+    saveJob(job); // 最終状態を保存
     emit(
       job,
       {

@@ -11,9 +11,13 @@
 // React の基本的な機能を読み込みます。
 // useState: 画面が覚えておく値（状態）を管理する / useRef: 再描画をまたいで値を保持する箱 / useCallback: 関数を作り直さず使い回す
 import { useCallback, useRef, useState } from "react";
+// useRouter = 画面の移動や再読み込みを行う Next.js の道具
 import { useRouter } from "next/navigation";
+// Lead（見込み客1件）と SearchPlan（検索プラン）の「データの形」の定義を読み込む
 import type { Lead, SearchPlan } from "@/lib/domain/types";
+// FitBar=適合度バー、CompanyAvatar=会社アイコン の表示部品
 import { FitBar, CompanyAvatar } from "./FitBar";
+// LeadDrawer = リードをクリックしたとき右から出てくる詳細パネル
 import { LeadDrawer } from "./LeadDrawer";
 
 // 画面の進行状態を表す種類。idle=待機中 / planning=プラン作成中 / plan_ready=プラン完成 / running=検索実行中 / done=完了
@@ -122,8 +126,8 @@ export function Workspace({
       const data = JSON.parse(e.data); // 届いた文字列を JSON として解釈
       if (data.type === "lead") {
         // リード1件を取得して追加（逐次表示）
-        const r = await fetch(`/api/leads?jobId=${jid}`);
-        const { leads: fresh } = await r.json();
+        const r = await fetch(`/api/leads?jobId=${jid}`); // このジョブで今までに見つかったリードを取りに行く
+        const { leads: fresh } = await r.json(); // 返ってきたデータから leads 部分を取り出す
         setLeads(fresh); // 最新のリード一覧で画面を更新
       } else if (data.type === "completed") {
         // 検索がすべて完了したとき
@@ -175,12 +179,13 @@ export function Workspace({
   const saveList = async () => {
     // 保存名を「業種 · 今日の日付」の形で自動生成（industry が無ければ「リード」）
     const name = `${plan?.icp.industry ?? "リード"} · ${new Date().toLocaleDateString("ja-JP")}`;
+    // サーバーの /api/lists に、名前と対象リードのID一覧を送って保存する
     await fetch("/api/lists", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspaceId, name, leadIds: activeLeads.map((l) => l.id) }),
     });
-    setSaved(true);
+    setSaved(true); // ボタンを「保存済み」表示に切り替える
   };
 
   // ここからが実際に画面へ表示する見た目（JSX）です。左が入力チャット、右が結果一覧の2カラム構成。
@@ -244,6 +249,7 @@ export function Workspace({
         {/* input（画面下部の文字入力欄） */}
         <div className="border-t border-line p-3">
           <div className="flex items-end gap-2 rounded-2xl border border-line bg-paper p-2">
+            {/* 文字入力欄。value=今の入力内容、onChange=打つたびに state を更新 */}
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -258,11 +264,13 @@ export function Workspace({
               placeholder={phase === "idle" ? "理想の顧客像を入力…" : "フォローアップを入力…"}
               className="max-h-32 min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none"
             />
+            {/* 送信ボタン。押すと入力内容を送信。空欄のときは押せない（薄く表示） */}
             <button
               onClick={() => submitPrompt(input)}
               disabled={!input.trim()}
               className="shrink-0 rounded-xl bg-ink px-3 py-2 text-white disabled:opacity-30"
             >
+              {/* この path は紙飛行機（送信）のアイコンを描いている */}
               <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
                 <path d="M4 12l16-8-8 16-1.5-6.5L4 12Z" />
               </svg>
@@ -316,16 +324,22 @@ function PlanCard({
 }) {
   return (
     <div className="rounded-2xl border border-line bg-paper p-4 shadow-sm">
+      {/* カードの見出しラベル */}
       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-brand">検索プラン</div>
+      {/* プランの各項目を「ラベル：値」の一覧で表示 */}
       <dl className="space-y-1.5 text-sm">
         <Row label="業種" value={plan.icp.industry} />
         <Row label="地域" value={plan.icp.location} />
         <Row label="市場" value={plan.icp.market} />
+        {/* シグナル（購買の兆し）が指定されているときだけ表示。複数あれば「/」でつなぐ */}
         {plan.icp.signals.length > 0 && <Row label="シグナル" value={plan.icp.signals.join(" / ")} />}
+        {/* どのデータ元から探すか（コネクタの名前をカンマ区切りで並べる） */}
         <Row label="検索ソース" value={plan.connectors.map((c) => c.label).join(", ")} />
         <Row label="想定件数" value={`〜${plan.estimatedLeads}件`} />
+        {/* この検索でおよそ何クレジット消費する見込みか */}
         <Row label="見積り" value={`約 ${plan.estimatedCredits} クレジット`} />
       </dl>
+      {/* 実行ボタン。実行中は押せなくして文言を「実行中…」に変える */}
       <button
         onClick={onRun}
         disabled={running}
@@ -365,13 +379,16 @@ function ResultsHeader({
 }) {
   return (
     <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-5">
+      {/* 左側：プランがあれば「地域 · 業種」、無ければ「リード」。下に件数 */}
       <div>
         <div className="font-serif-display text-base text-ink">
           {plan ? `${plan.icp.location} · ${plan.icp.industry}` : "リード"}
         </div>
         <div className="text-xs text-muted">{count} 件</div>
       </div>
+      {/* 右側：保存ボタンとCSV書き出しボタン */}
       <div className="flex items-center gap-2">
+        {/* リストに保存ボタン。書き出せる件数が無ければ押せない。保存後は「保存済み ✓」に */}
         <button
           onClick={onSave}
           disabled={!canExport}
@@ -379,6 +396,7 @@ function ResultsHeader({
         >
           {saved ? "保存済み ✓" : "リストに保存"}
         </button>
+        {/* CSV書き出しリンク。ジョブIDがあればその結果をダウンロード。件数0のときは押せない見た目 */}
         <a
           href={jobId ? `/api/export?jobId=${jobId}` : "#"}
           className={`rounded-full px-3 py-1.5 text-sm font-medium ${
@@ -469,18 +487,24 @@ function ResultsTable({
               onClick={() => onSelect(l)}
               className="animate-row-in cursor-pointer border-t border-line/70 hover:bg-cream-100/40"
             >
+              {/* #列：通し番号（0始まりなので +1 して1番から見せる） */}
               <td className="px-3 py-2 tabular-nums text-muted">{i + 1}</td>
+              {/* Fit列：適合度スコアを横バーで表示 */}
               <td className="px-3 py-2">
                 <FitBar score={l.fitScore} />
               </td>
+              {/* 会社列：会社アイコン＋会社名 */}
               <td className="px-3 py-2">
                 <span className="flex items-center gap-2">
                   <CompanyAvatar name={l.companyName} />
                   <span className="text-ink">{l.companyName}</span>
                 </span>
               </td>
+              {/* 業種列（広い画面でだけ表示） */}
               <td className="hidden px-3 py-2 text-ink-soft lg:table-cell">{l.category}</td>
+              {/* 従業員数列（さらに広い画面でだけ表示） */}
               <td className="hidden px-3 py-2 text-ink-soft xl:table-cell">{l.headcount}</td>
+              {/* メール列：メールがあれば等幅フォントで表示、無ければ「—」 */}
               <td className="hidden px-3 py-2 text-ink-soft lg:table-cell">
                 {l.email ? (
                   <span className="font-mono text-[12px]">{l.email}</span>
@@ -488,9 +512,11 @@ function ResultsTable({
                   <span className="text-muted">—</span>
                 )}
               </td>
+              {/* 信頼度列：スコアを色付きバッジで表示 */}
               <td className="px-3 py-2">
                 <ConfBadge score={l.confidence} />
               </td>
+              {/* シグナル列：購買の兆し */}
               <td className="px-3 py-2 text-ink-soft">{l.buyingSignal}</td>
               <td className="px-3 py-2">
                 {/* 星ボタン: 押すとお気に入り⇔通常を切り替え。行クリック（詳細表示）が同時に起きないよう stopPropagation で止める */}
