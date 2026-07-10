@@ -81,7 +81,7 @@ export async function runSearchJob(
     emit(job, { type: "queued", message: "ジョブを開始しました" }, onEvent);
 
     // 1) リスト抽出：コネクタ層（データ取得先）から候補を集める（最新化キャッシュを活用）
-    const target = Math.min(plan.estimatedLeads, 40); // 目標件数（多くても40件までに制限）
+    const target = Math.min(plan.estimatedLeads, 250); // 目標件数（多くても250件までに制限。以前は40件と少なすぎた）
     const market = plan.icp.market; // 対象市場（日本 or グローバル）
     const sig = signatureOf(job.workspaceId, plan.icp, target); // 検索条件の署名（利用者ごとに分離）
 

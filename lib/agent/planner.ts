@@ -187,7 +187,7 @@ export async function createPlanSmart(
   sessionId: string,
   prompt: string,
   marketDefault: Market,
-  targetCount = 24
+  targetCount = 100 // 既定の取得件数（以前は24件と少なすぎた。実用的な件数に引き上げ）
 ): Promise<SearchPlan> {
   // Gemini が使えるなら試す。null（未設定・失敗）ならルールベースに切り替える。
   const icp =

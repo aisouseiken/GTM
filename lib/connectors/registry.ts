@@ -83,7 +83,8 @@ function makeConnector(opts: {
     async search(input: ConnectorSearchInput): Promise<LeadCandidate[]> {
       const now = Date.now(); // 取得時刻を1回だけ用意
       // 目標件数より多めのプールを作り、その中から担当分だけ返す（→ コネクタ間で重複が出る）
-      const pool = generateCompanyPool(input.icp, input.planId, Math.max(input.count + 12, 24));
+      // 各コネクタは担当割合ぶんしか返さないため、目標件数の約1.7倍を用意して取りこぼしを防ぐ。
+      const pool = generateCompanyPool(input.icp, input.planId, Math.max(Math.round(input.count * 1.7), 40));
       const found: LeadCandidate[] = []; // 見つけた候補を貯める入れ物
       for (const c of pool) { // プールの企業を1社ずつ調べる
         // ドメイン＋offset から安定した値を作り、coverage 未満なら「このコネクタが見つけた」とする

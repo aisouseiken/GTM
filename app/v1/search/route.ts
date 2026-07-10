@@ -77,9 +77,9 @@ export async function POST(req: Request) {
   if (!wallet || wallet.balance <= 0)
     return NextResponse.json({ error: "insufficient_credits" }, { status: 402 });
 
-  // 取得件数を 1〜40 の範囲におさめる（未指定なら24件）
+  // 取得件数を 1〜250 の範囲におさめる（未指定なら100件）
   // マイナス・0・極端に大きい数・数値でない入力を弾き、件数計算がおかしくならないようにする
-  const maxResults = Math.max(1, Math.min(Number(body.max_results) || 24, 40));
+  const maxResults = Math.max(1, Math.min(Number(body.max_results) || 100, 250));
   // 指示文をもとに検索プラン（何をどう検索するかの計画）を作る（"api" は、この検索がAPI経由であることを表す印）
   const plan = await createPlanSmart(ws.id, "api", body.prompt, market, maxResults);
   // 作った検索プランから、実際に走らせる「ジョブ」を作成する
