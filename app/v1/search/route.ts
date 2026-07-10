@@ -7,7 +7,8 @@ import { getWorkspace, getWallet, saveApiKey, getJob, countActiveJobs, addAudit 
 // 料金プランごとの情報（同時に動かせるジョブ数などの上限）を読み込む
 import { PLAN_INFO } from "@/lib/domain/types";
 // 指示文から「検索プラン（何をどう検索するかの計画）」を作る道具を読み込む
-import { createPlan } from "@/lib/agent/planner";
+// createPlanSmart＝GeminiのAIがあればそれで解釈し、無ければ従来ロジックに自動で切り替わる版
+import { createPlanSmart } from "@/lib/agent/planner";
 // ジョブを作る道具(createJob)と、検索ジョブを実際に走らせる道具(runSearchJob)を読み込む
 import { createJob, runSearchJob } from "@/lib/agent/runner";
 // 「短時間に叩かれすぎていないか（乱用防止）」を判定する道具を読み込む
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
   // マイナス・0・極端に大きい数・数値でない入力を弾き、件数計算がおかしくならないようにする
   const maxResults = Math.max(1, Math.min(Number(body.max_results) || 24, 40));
   // 指示文をもとに検索プラン（何をどう検索するかの計画）を作る（"api" は、この検索がAPI経由であることを表す印）
-  const plan = createPlan(ws.id, "api", body.prompt, market, maxResults);
+  const plan = await createPlanSmart(ws.id, "api", body.prompt, market, maxResults);
   // 作った検索プランから、実際に走らせる「ジョブ」を作成する
   const job = createJob(plan);
   // 「どのAPIキーで・どんな操作を・どのワークスペースに対して行ったか」を監査ログ（後から確認できる記録）に残す

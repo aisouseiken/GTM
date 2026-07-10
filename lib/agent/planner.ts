@@ -15,6 +15,7 @@ import type {
 } from "@/lib/domain/types";
 import { id, saveSearchPlan } from "@/lib/data/store";
 import { getConnectors } from "@/lib/connectors/registry";
+import { geminiExtractICP, geminiEnabled } from "@/lib/agent/gemini";
 
 // 業種1つ分の定義。どんな言葉に反応し、検索時にどう言い換えるかを持つ。
 interface IndustryDef {
@@ -176,6 +177,36 @@ export function createPlan(
   };
   saveSearchPlan(plan); // 作成したプランを保存
   return plan; // 呼び出し元にプランを返す
+}
+
+// createPlan のAI版。GEMINI_API_KEY があれば Gemini で顧客像(ICP)を抽出し、
+// 無い/失敗のときは従来のルールベース(buildICP)へ自動フォールバックする。
+// ＝「AIを繋いでも、繋がなくても動く」安全な作り。
+export async function createPlanSmart(
+  workspaceId: string,
+  sessionId: string,
+  prompt: string,
+  marketDefault: Market,
+  targetCount = 24
+): Promise<SearchPlan> {
+  // Gemini が使えるなら試す。null（未設定・失敗）ならルールベースに切り替える。
+  const icp =
+    (geminiEnabled() ? await geminiExtractICP(prompt, marketDefault) : null) ??
+    buildICP(prompt, marketDefault);
+  const connectors = connectorsForMarket(icp.market); // 使うデータ取得先を決定
+  const est = estimate(targetCount, connectors.length); // コストと件数を見積もる
+  const plan: SearchPlan = {
+    id: id("plan"),
+    workspaceId,
+    sessionId,
+    icp,
+    connectors,
+    estimatedCredits: est.credits,
+    estimatedLeads: est.leads,
+    createdAt: Date.now(),
+  };
+  saveSearchPlan(plan); // 作成したプランを保存
+  return plan;
 }
 
 // 実 LLM 接続用のフック（最終フェーズ）

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 // 「今ログインしているのは誰か（本人確認）」を調べる道具を読み込む
 import { getCurrentUser } from "@/lib/auth/session";
 // 指示文をもとに「検索プラン（何をどう検索するかの計画）」を組み立てる道具を読み込む
-import { createPlan } from "@/lib/agent/planner";
+// createPlanSmart＝GeminiのAIがあればそれで解釈し、無ければ従来ロジックに自動で切り替わる版
+import { createPlanSmart } from "@/lib/agent/planner";
 // データ保管庫の道具を読み込む（ワークスペース取得・会話メッセージ追加・会話セッション作成／取得）
 import { getWorkspace, addMessage, createSession, getSession } from "@/lib/data/store";
 // 検索対象の市場（例：日本／全世界）の「初期設定値」を読み込む
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
   addMessage({ sessionId, role: "user", content: prompt, kind: "text" });
   // 指示文をもとに検索プランを作成する
   // 検索対象の市場は、ワークスペースの設定(ws.market)を使う。設定が無ければ初期設定値を使う（?? は「無ければこちら」の意味）
-  const plan = createPlan(workspaceId, sessionId, prompt, ws.market ?? MARKET_DEFAULT);
+  const plan = await createPlanSmart(workspaceId, sessionId, prompt, ws.market ?? MARKET_DEFAULT);
   // AI側からの返事（プランを作った旨の案内）を、会話履歴に「アシスタントの発言(role: assistant)」として記録する
   addMessage({
     sessionId,
