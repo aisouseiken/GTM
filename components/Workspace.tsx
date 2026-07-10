@@ -190,12 +190,12 @@ export function Workspace({
 
   // ここからが実際に画面へ表示する見た目（JSX）です。左が入力チャット、右が結果一覧の2カラム構成。
   return (
-    // スマホ(既定)：縦積み。上=チャット(高さ最大45%)、下=結果一覧が残りを占める。
-    // PC(md以上)：左右2カラム(左360px＋右可変)。grid-rows は md でリセットして1行に戻す。
-    <div className="grid h-full grid-cols-1 grid-rows-[auto_1fr] md:grid-cols-[360px_1fr] md:grid-rows-none">
-      {/* Chat pane（左側／スマホでは上側：チャット入力ペイン） */}
-      {/* スマホは下線(border-b)で区切り＋高さ45vhに制限、PCは右線(border-r)で区切り高さ制限なし */}
-      <div className="flex max-h-[45vh] min-h-0 flex-col border-b border-line bg-cream-100/30 md:max-h-none md:border-b-0 md:border-r">
+    // スマホ(既定)：縦積み。上=結果一覧、下=チャット＋入力欄（＝入力が画面下＝フッターの直上に来る）。
+    // PC(md以上)：左右2カラム(左=チャット360px＋右=結果)。
+    <div className="flex h-full flex-col md:grid md:grid-cols-[360px_1fr]">
+      {/* Chat pane（PCでは左側／スマホでは下側：チャット＋入力ペイン） */}
+      {/* order でスマホ時だけ下に回す。スマホは上線(border-t)で区切り＋高さ45vhに制限、PCは右線(border-r) */}
+      <div className="order-2 flex max-h-[45vh] min-h-0 flex-col border-t border-line bg-cream-100/30 md:order-none md:max-h-none md:border-t-0 md:border-r">
         <div className="scroll-thin flex-1 space-y-3 overflow-y-auto p-4">
           {/* 待機状態のときだけ、案内文と入力例のボタンを表示 */}
           {phase === "idle" && (
@@ -287,8 +287,9 @@ export function Workspace({
         </div>
       </div>
 
-      {/* Results pane（右側：検索結果の一覧ペイン） */}
-      <div className="flex min-h-0 flex-col bg-cream">
+      {/* Results pane（PCでは右側／スマホでは上側：検索結果の一覧ペイン） */}
+      {/* order-1 でスマホ時は上に表示し、残りの高さいっぱい(flex-1)に広げる */}
+      <div className="order-1 flex min-h-0 flex-1 flex-col bg-cream md:order-none md:flex-none">
         {/* 結果一覧の上部バー（件数・保存ボタン・CSV書き出し） */}
         <ResultsHeader
           plan={plan}

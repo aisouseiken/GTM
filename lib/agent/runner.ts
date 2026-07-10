@@ -22,6 +22,7 @@ import type { LeadCandidate } from "@/lib/connectors/types";
 import { resolveCandidates } from "@/lib/agent/resolve";
 import { signatureOf, getFreshCandidates, setCandidates, cacheAgeMinutes } from "@/lib/agent/freshness";
 import { verifyLead } from "@/lib/agent/verify";
+import { crawlContact, crawlEnabled } from "@/lib/agent/crawl";
 
 // 指定したミリ秒だけ待つ小さな関数（処理の間に「間（ま）」を作り、進捗を見せるために使う）。
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -148,6 +149,8 @@ export async function runSearchJob(
     const wallet = getWallet(job.workspaceId); // クレジット残高の財布（利用者の残高情報）を取得
     let creditsSpent = 0; // このジョブで消費した合計クレジット（0から数え始める）
     const saved: Lead[] = []; // 保存できたリードをためる箱
+    const useCrawl = crawlEnabled(); // 自社サイト巡回でメール補完するか（環境変数で有効化）
+    let crawled = 0; // クロールした件数（負荷を抑えるため上限を設ける）
 
     for (const lead of merged) { // まとめたリードを1件ずつ検証・保存していく
       // ★クライアントが接続を切ったら中断（これ以上クレジットを消費しない）
@@ -161,6 +164,15 @@ export async function runSearchJob(
       if (wallet && wallet.balance <= 0) {
         job.status = "partial"; // 残高が尽きたら途中まで（部分完了）で終了
         break;
+      }
+      // ★クロール（任意・PoC）：CRAWL_ENABLED のとき、実在ドメインのリードは自社サイトを
+      //   1ページ巡回して公開メール/電話を補完する。偽ドメインは crawlContact 側で即スキップ。
+      //   サイト負荷とジョブ遅延を抑えるため、1ジョブあたり最大25件までに制限する。
+      if (useCrawl && crawled < 25) {
+        crawled++;
+        const found = await crawlContact(lead.domain);
+        if (found?.email) lead.email = found.email; // 見つかった公開メールで上書き
+        if (found?.phone) lead.phone = found.phone; // 見つかった公開電話で上書き
       }
       const { lead: verified, creditsUsed } = verifyLead(lead); // 検証して信頼度を確定（成功した検証の数も受け取る）
       // 検証成功分を課金（発見1 + 検証分）
