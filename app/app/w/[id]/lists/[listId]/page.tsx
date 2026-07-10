@@ -38,7 +38,7 @@ export default async function ListDetailPage({
     // 共通の外枠。今開いているのは「リスト（leads）」画面だと伝える。
     <AppShell workspace={ws} balance={wallet?.balance ?? 0} active="/leads">
       {/* 縦にはみ出したらスクロールできる本文エリア（周囲に余白） */}
-      <div className="scroll-thin h-full overflow-y-auto p-8">
+      <div className="scroll-thin h-full overflow-y-auto p-4 sm:p-8">
         {/* 中身を中央寄せし、読みやすい横幅までに制限 */}
         <div className="mx-auto max-w-4xl">
           {/* 戻るリンク：押すと保存リストの一覧ページへ戻る */}
@@ -51,7 +51,7 @@ export default async function ListDetailPage({
           <p className="mt-1 text-sm text-muted">{leads.length} 件のリード</p>
 
           {/* リードの一覧表 */}
-          <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-paper">
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-paper">
             {/* <table>＝表。w-full＝横幅いっぱい、text-left＝左そろえ */}
             <table className="w-full text-left text-[13px]">
               {/* <thead>＝表の見出し行（各列が何かを示す） */}

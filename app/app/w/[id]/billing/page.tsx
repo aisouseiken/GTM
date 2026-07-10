@@ -28,24 +28,27 @@ export default async function BillingPage({
 
   return (
     <AppShell workspace={ws} balance={wallet?.balance ?? 0} active="/billing">
-      <div className="scroll-thin h-full overflow-y-auto p-8">
+      <div className="scroll-thin h-full overflow-y-auto p-4 sm:p-8">
         <div className="mx-auto max-w-4xl">
           <h1 className="font-serif-display text-3xl text-ink">プランと課金</h1>
 
           {/* balance：現在のクレジット残高・契約プランと、支払い方法の管理ボタン */}
-          <div className="mt-6 flex items-center gap-6 rounded-2xl border border-line bg-paper p-6">
+          {/* スマホは縦積み(flex-col)、PC(sm以上)は横並び。区切りの縦線はスマホでは隠す */}
+          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-line bg-paper p-6 sm:flex-row sm:items-center sm:gap-6">
             <div>
               <div className="text-sm text-muted">現在のクレジット残高</div>
               <div className="mt-1 text-4xl font-semibold tabular-nums text-ink">
                 {(wallet?.balance ?? 0).toLocaleString()}
               </div>
             </div>
-            <div className="h-12 w-px bg-line" />
+            {/* 区切りの縦線（スマホでは非表示） */}
+            <div className="hidden h-12 w-px bg-line sm:block" />
             <div>
               <div className="text-sm text-muted">現在のプラン</div>
               <div className="mt-1 text-2xl font-medium text-ink">{PLAN_INFO[ws.plan].label}</div>
             </div>
-            <div className="ml-auto">
+            {/* 管理ボタン（PCでは右端に寄せる。スマホでは下に回り込む） */}
+            <div className="sm:ml-auto">
               <ManageBillingButton workspaceId={ws.id} />
             </div>
           </div>

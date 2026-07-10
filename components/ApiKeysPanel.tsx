@@ -95,8 +95,9 @@ export function ApiKeysPanel({
       )}
 
       {/* 発行済みAPIキーの一覧表（名前・キーの一部・作成日を表示） */}
-      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-paper">
-        <table className="w-full text-left text-sm">
+      {/* 表が画面より広いときは横スクロールで見られるようにする（スマホ対応） */}
+      <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-paper">
+        <table className="w-full min-w-[420px] text-left text-sm">
           {/* 表の見出し行（各列が何かを示すラベル） */}
           <thead className="bg-cream-100/60 text-xs uppercase tracking-wide text-muted">
             <tr>

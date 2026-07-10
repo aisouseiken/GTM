@@ -31,7 +31,7 @@ export default async function LeadsPage({
     // 共通の外枠。今開いているのは「リスト（leads）」画面だと伝える。
     <AppShell workspace={ws} balance={wallet?.balance ?? 0} active="/leads">
       {/* 縦にはみ出したらスクロールできる本文エリア（周囲に余白） */}
-      <div className="scroll-thin h-full overflow-y-auto p-8">
+      <div className="scroll-thin h-full overflow-y-auto p-4 sm:p-8">
         {/* 中身を中央寄せし、読みやすい横幅までに制限 */}
         <div className="mx-auto max-w-4xl">
           {/* 見出しと「新しい検索」ボタンを、左右の端に振り分けて横並びにする */}

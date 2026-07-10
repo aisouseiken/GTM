@@ -40,7 +40,7 @@ export default async function ApiKeysPage({
     // 共通の外枠。残高（無ければ0）を渡し、今開いているのはAPIキー画面だと伝える。
     <AppShell workspace={ws} balance={wallet?.balance ?? 0} active="/api-keys">
       {/* 縦にはみ出したら細いスクロールバーで見られるようにした本文エリア（周囲に余白） */}
-      <div className="scroll-thin h-full overflow-y-auto p-8">
+      <div className="scroll-thin h-full overflow-y-auto p-4 sm:p-8">
         {/* 中身を中央寄せし、横幅を読みやすい幅までに制限する */}
         <div className="mx-auto max-w-3xl">
           {/* ページの大見出し */}

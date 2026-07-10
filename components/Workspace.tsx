@@ -190,9 +190,12 @@ export function Workspace({
 
   // ここからが実際に画面へ表示する見た目（JSX）です。左が入力チャット、右が結果一覧の2カラム構成。
   return (
-    <div className="grid h-full grid-cols-1 md:grid-cols-[360px_1fr]">
-      {/* Chat pane（左側：チャット入力ペイン） */}
-      <div className="flex min-h-0 flex-col border-r border-line bg-cream-100/30">
+    // スマホ(既定)：縦積み。上=チャット(高さ最大45%)、下=結果一覧が残りを占める。
+    // PC(md以上)：左右2カラム(左360px＋右可変)。grid-rows は md でリセットして1行に戻す。
+    <div className="grid h-full grid-cols-1 grid-rows-[auto_1fr] md:grid-cols-[360px_1fr] md:grid-rows-none">
+      {/* Chat pane（左側／スマホでは上側：チャット入力ペイン） */}
+      {/* スマホは下線(border-b)で区切り＋高さ45vhに制限、PCは右線(border-r)で区切り高さ制限なし */}
+      <div className="flex max-h-[45vh] min-h-0 flex-col border-b border-line bg-cream-100/30 md:max-h-none md:border-b-0 md:border-r">
         <div className="scroll-thin flex-1 space-y-3 overflow-y-auto p-4">
           {/* 待機状態のときだけ、案内文と入力例のボタンを表示 */}
           {phase === "idle" && (
