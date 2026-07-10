@@ -299,7 +299,8 @@ export function Workspace({
           saved={saved}
           canExport={activeLeads.length > 0}
         />
-        <div className="scroll-thin min-h-0 flex-1 overflow-auto p-4">
+        {/* 縦だけスクロール・横は固定（overflow-x-hidden）＝横スクロールを無くす。スマホは余白も詰める */}
+        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
           {/* リードが0件なら空状態の案内、1件以上あれば結果の表を表示 */}
           {activeLeads.length === 0 ? (
             <EmptyState phase={phase} />
@@ -387,16 +388,17 @@ function ResultsHeader({
   canExport: boolean;
 }) {
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-5">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line px-3 sm:px-5">
       {/* 左側：プランがあれば「地域 · 業種」、無ければ「リード」。下に件数 */}
-      <div>
-        <div className="font-serif-display text-base text-ink">
+      {/* min-w-0＋truncate＝長い見出しでも横に広がらず「…」で省略（横あふれ防止） */}
+      <div className="min-w-0">
+        <div className="truncate font-serif-display text-base text-ink">
           {plan ? `${plan.icp.location} · ${plan.icp.industry}` : "リード"}
         </div>
         <div className="text-xs text-muted">{count} 件</div>
       </div>
-      {/* 右側：保存ボタンとCSV書き出しボタン */}
-      <div className="flex items-center gap-2">
+      {/* 右側：保存ボタンとCSV書き出しボタン（shrink-0＝縮まない。左の見出しが代わりに省略される） */}
+      <div className="flex shrink-0 items-center gap-2">
         {/* リストに保存ボタン。書き出せる件数が無ければ押せない。保存後は「保存済み ✓」に */}
         <button
           onClick={onSave}
