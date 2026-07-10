@@ -16,6 +16,8 @@
 
 // redirect = 別のページへ自動的に画面を移動させる道具
 import { redirect } from "next/navigation";
+// randomUUID = 重複しないランダムな文字列を作る道具（ゲスト用の使い捨てメールに使う）
+import { randomUUID } from "crypto";
 // establishSession = ログイン状態を作る（本人だと覚えさせる）／ signOut = ログイン状態を消す
 import { establishSession, signOut } from "@/lib/auth/session";
 // ユーザー作成・メールからユーザー検索・ワークスペース一覧取得・監査ログ記録などの部品
@@ -97,6 +99,25 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   // 会員のワークスペース一覧を取得する
   const ws = listWorkspaces(user.id);
   // ワークスペースがあればその最初の作業場へ、なければ共通の入口(/app)へ移動させる
+  redirect(ws.length ? `/app/w/${ws[0].id}` : "/app");
+}
+
+// 【ゲストで試す】ID・パスワードなしで、その場で使い捨てのお試しアカウントを作ってログイン状態にする関数。
+//   登録フォームを一切通さずに、すぐアプリを触ってもらうための無料お試し導線。
+//   ※メモリ上の一時アカウントなので、サーバー再起動で消えます（お試し用途に十分）。
+export async function guestAction() {
+  // レート制限：ゲスト作成の乱発（メモリ圧迫・いたずら）を防ぐ。全体で1分に30回まで。
+  if (!rateLimit("guest-create", 30, 60_000)) redirect("/login");
+  // 重複しない使い捨てメールを作る（画面上は表示されない内部用の識別子）。
+  const email = `guest-${randomUUID().slice(0, 8)}@guest.local`;
+  // パスワードなしでゲスト会員を作成する（このアカウントはログイン照合には使えない＝ゲスト専用）。
+  const user = createUser(email, "ゲスト");
+  // 作ったゲストでログイン状態を確立する（この後はログイン済みとして扱われる）。
+  await establishSession(user);
+  // 監査ログに「ゲストとして開始した」ことを記録する。
+  addAudit({ actor: `user:${user.id}`, action: "guest", meta: { email } });
+  // ゲストにも自動でワークスペース（作業場）が用意される。その最初の作業場へ移動させる。
+  const ws = listWorkspaces(user.id);
   redirect(ws.length ? `/app/w/${ws[0].id}` : "/app");
 }
 

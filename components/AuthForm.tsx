@@ -8,6 +8,7 @@
 import { useActionState } from "react";
 import Link from "next/link"; // ページ移動用のリンク部品。
 import { Logo } from "./Logo"; // 自作のロゴ部品。
+import { guestAction } from "@/app/actions/auth"; // ID/パスワードなしで試すサーバー処理。
 import type { AuthState } from "@/app/actions/auth"; // 処理結果（エラー文言など）の「型（決まった形）」。
 
 // Action = このフォームが呼び出すサーバー処理の形。前回の状態と入力内容を受け取り、新しい状態を返す。
@@ -112,6 +113,22 @@ export function AuthForm({
               className="w-full rounded-full bg-ink px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {pending ? "処理中…" : isSignup ? "無料で登録" : "ログイン"}
+            </button>
+          </form>
+
+          {/* 区切り線＋「または」（本登録とお試しの間の仕切り） */}
+          <div className="my-5 flex items-center gap-3 text-xs text-muted">
+            <span className="h-px flex-1 bg-line" />
+            または
+            <span className="h-px flex-1 bg-line" />
+          </div>
+          {/* ★ID/パスワードなしで、その場ですぐ試せるゲスト用ボタン（無料お試し） */}
+          <form action={guestAction}>
+            <button
+              type="submit"
+              className="w-full rounded-full border border-line-strong bg-paper px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-cream-100"
+            >
+              登録せずに試す（無料）
             </button>
           </form>
 

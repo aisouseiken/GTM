@@ -6,6 +6,8 @@
 // ↓ ここから「import（外部の部品や機能を持ち込む）」の一覧です。
 // Link＝別ページへ移動するための入口（リンク）を作る部品。
 import Link from "next/link";
+// guestAction＝ID/パスワードなしで、その場でお試しアカウントを作ってアプリに入るサーバー処理。
+import { guestAction } from "@/app/actions/auth";
 // MarketingNav＝画面上部のメニューバー（ナビゲーション＝案内表示）の部品。
 import { MarketingNav } from "@/components/MarketingNav";
 // AnimatedLeadSearchDemo＝検索画面が自動で動いて見えるデモ（見本）の部品。
@@ -59,23 +61,35 @@ export default function Home() {
             理想の顧客像を伝えれば、GTM の AI がリアルタイムでウェブを探索し、
             検証済みの連絡先を届けます。
           </p>
-          {/* 2つのボタン（申し込みボタンとログインボタン）を横並びにする枠 */}
-          <div className="mt-8 flex items-center justify-center gap-3">
-            {/* 新規登録ページ（/signup）へ進む、黒い目立つボタン */}
+          {/* ボタン群（お試し・申し込み・ログイン）を横並びにする枠。狭い画面では折り返す */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {/* ★登録せずにその場で試せる、黒い目立つボタン。押すとゲスト用の作業場が自動で用意される。
+                サーバー処理(guestAction)を呼ぶため <form> でくるむ（JavaScriptが無くても動く） */}
+            <form action={guestAction}>
+              <button
+                type="submit"
+                className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              >
+                登録せずに試す（無料）
+              </button>
+            </form>
+            {/* 新規登録ページ（/signup）へ進む、白い枠付きボタン */}
             <Link
               href="/signup"
-              className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              className="rounded-full border border-line-strong bg-paper px-6 py-3 text-sm font-medium text-ink transition-colors hover:bg-cream-100"
             >
               無料ではじめる
             </Link>
-            {/* ログインページ（/login）へ進む、白い枠付きボタン */}
+            {/* ログインページ（/login）へ進む、文字だけの控えめリンク */}
             <Link
               href="/login"
-              className="rounded-full border border-line-strong bg-paper px-6 py-3 text-sm font-medium text-ink transition-colors hover:bg-cream-100"
+              className="px-2 py-3 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
             >
               ログイン
             </Link>
           </div>
+          {/* お試しボタンの補足（クレジットカード不要・登録不要であることを明記） */}
+          <p className="mt-3 text-xs text-muted">クレジットカード不要・登録不要ですぐ試せます</p>
         </div>
 
         {/* FV内：AIプロンプト入力欄（動くタイピングデモ） */}
