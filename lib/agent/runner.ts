@@ -15,6 +15,7 @@ import {
   saveJob,
   saveLead,
   spendCredits,
+  isSuppressed,
 } from "@/lib/data/store";
 import { getConnectors } from "@/lib/connectors/registry";
 import type { LeadCandidate } from "@/lib/connectors/types";
@@ -123,8 +124,11 @@ export async function runSearchJob(
     }
 
     // 2) リスト元の最適化：名寄せ・重複排除・出典マージで1社に統合する
+    //    ★オプトアウト抑制：除外申請のあったメール/ドメインはリードから取り除く（法令・プライバシー対応）
     await sleep(220);
-    const merged = resolveCandidates(candidates, job.workspaceId, job.id).slice(0, target);
+    const merged = resolveCandidates(candidates, job.workspaceId, job.id)
+      .filter((l) => !isSuppressed(l.email))
+      .slice(0, target);
     emit(
       job,
       {

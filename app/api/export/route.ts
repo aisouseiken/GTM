@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/session";
-import { getJob, listLeadsByJob, getWorkspace } from "@/lib/data/store";
+import { getJob, listLeadsByJob, getWorkspace, addAudit } from "@/lib/data/store";
 
 /*
  * このAPI（GET /api/export?jobId=...）は、ジョブで見つかったリード（見込み客）を
@@ -52,6 +52,9 @@ export async function GET(req: Request) {
   );
   // 見出し行＋データ行を改行でつないで完成。先頭のBOM（文字コードの目印）でExcelの文字化けを防ぐ
   const csv = "﻿" + [headers.join(","), ...rows].join("\n"); // BOM 付きで Excel 対応
+
+  // 監査ログ：誰が・どのジョブの結果を・何件エクスポートしたかを記録
+  addAudit({ actor: `user:${user.id}`, action: "export", target: job.workspaceId, meta: { jobId, count: leads.length } });
 
   // CSVファイルとして「ダウンロード」させるためのヘッダーを付けて返す
   return new Response(csv, {

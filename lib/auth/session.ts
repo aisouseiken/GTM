@@ -8,7 +8,7 @@
 
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
-import { createUser, getUser, listWorkspaces, createWorkspace } from "@/lib/data/store";
+import { getUser, listWorkspaces, createWorkspace } from "@/lib/data/store";
 import type { User } from "@/lib/domain/types";
 
 // cookie に保存するときの名前（キー）。この名前で保存・取得する。
@@ -70,23 +70,20 @@ export async function getCurrentUser(): Promise<User | null> {
   return getUser(uid) ?? null; // IDからユーザー情報を探して返す
 }
 
-// ログイン処理。メール（と任意で名前）を受け取り、ユーザーを用意して署名付き cookie に記録する。
-export async function signIn(email: string, name?: string): Promise<User> {
-  // ユーザーを作成（名前が無ければメールの@より前を仮の名前にする）
-  const user = createUser(email, name || email.split("@")[0]);
-  // 初回ログイン時にデフォルトワークスペースを用意
+// セッション確立：既存ユーザーの userId を署名付き cookie に記録する（本人確認は呼び出し側で済ませる）。
+// 初回はデフォルトワークスペースを用意する。
+export async function establishSession(user: User): Promise<void> {
   if (listWorkspaces(user.id).length === 0) {
     createWorkspace(user.id, "マイワークスペース", "JP", "free");
   }
   const store = await cookies();
-  store.set(COOKIE, createToken(user.id), { // 「userId.署名」を cookie に保存
+  store.set(COOKIE, createToken(user.id), { // 「userId.発行時刻.署名」を cookie に保存
     httpOnly: true, // JavaScriptから読めないようにする（盗み見・XSS対策）
     sameSite: "lax", // 別サイトからの不正な送信をある程度防ぐ設定
     secure: process.env.NODE_ENV === "production", // 本番はHTTPS通信のみ送信
     path: "/", // サイト全体で有効
     maxAge: 60 * 60 * 24 * 30, // 有効期限30日（秒数で指定）
   });
-  return user;
 }
 
 // ログアウト処理。保存していたセッション cookie を削除する。

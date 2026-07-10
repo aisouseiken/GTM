@@ -4,6 +4,7 @@
 
 import type {
   ApiKey,
+  AuditLog,
   ChatMessage,
   ChatSession,
   CreditTransaction,
@@ -34,6 +35,8 @@ interface DB {
   apiKeys: Map<string, ApiKey>;
   subscriptions: Map<string, Subscription>; // key: workspaceId
   grantedKeys: Set<string>; // クレジット付与の冪等キー（二重計上防止）
+  audits: AuditLog[]; // 監査ログ（誰がいつ何をしたか）
+  suppression: Set<string>; // オプトアウト抑制リスト（メール/ドメインを小文字で保持）
 }
 
 // HMR で state が飛ばないよう globalThis に保持
@@ -55,6 +58,8 @@ function fresh(): DB {
     apiKeys: new Map(),
     subscriptions: new Map(),
     grantedKeys: new Set(),
+    audits: [],
+    suppression: new Set(),
   };
 }
 
@@ -69,13 +74,15 @@ export function id(prefix: string): string {
 }
 
 // ---- users ----
-export function createUser(email: string, name: string): User {
+// ユーザーを作成する（同じメールが既にあればそれを返す）。passwordHash は任意。
+export function createUser(email: string, name: string, passwordHash?: string): User {
   const existing = db.usersByEmail.get(email.toLowerCase());
   if (existing) return db.users.get(existing)!;
   const user: User = {
     id: id("usr"),
     email: email.toLowerCase(),
     name,
+    passwordHash,
     createdAt: Date.now(),
   };
   db.users.set(user.id, user);
@@ -365,5 +372,33 @@ export function grantMonthlyCredits(wid: string, plan: Plan, dedupeKey?: string)
     note: `${PLANS[plan].label} プランのクレジット付与`,
     createdAt: Date.now(),
   });
+}
+
+// ---- 監査ログ（誰がいつ何をしたか）----
+export function addAudit(entry: Omit<AuditLog, "id" | "at">): void {
+  db.audits.push({ ...entry, id: id("aud"), at: Date.now() });
+  if (db.audits.length > 100000) db.audits.splice(0, db.audits.length - 100000); // 上限
+}
+// 指定ワークスペースに関する監査ログ（新しい順）
+export function listAudits(target: string, limit = 50): AuditLog[] {
+  return db.audits
+    .filter((a) => a.target === target)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit);
+}
+
+// ---- オプトアウト抑制リスト（メール/ドメインを配信・取得から除外）----
+export function addSuppression(value: string): void {
+  const v = value.trim().toLowerCase();
+  if (v) db.suppression.add(v);
+}
+// メール（とそのドメイン）が抑制対象かどうか
+export function isSuppressed(email?: string): boolean {
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  if (db.suppression.has(e)) return true;
+  const at = e.lastIndexOf("@");
+  if (at >= 0 && db.suppression.has(e.slice(at + 1))) return true; // ドメイン単位の抑制
+  return false;
 }
 

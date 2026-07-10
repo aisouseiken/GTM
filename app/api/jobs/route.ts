@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getSearchPlan, getWorkspace, getWallet, countActiveJobs } from "@/lib/data/store";
+import { getSearchPlan, getWorkspace, getWallet, countActiveJobs, addAudit } from "@/lib/data/store";
 import { createJob } from "@/lib/agent/runner";
 import { PLAN_INFO } from "@/lib/domain/types";
 import { rateLimit } from "@/lib/ratelimit";
@@ -45,5 +45,7 @@ export async function POST(req: Request) {
 
   // ジョブを作成し、そのIDを返す
   const job = createJob(plan);
+  // 監査ログ：誰が・どのワークスペースで検索を開始したかを記録
+  addAudit({ actor: `user:${user.id}`, action: "search", target: plan.workspaceId, meta: { jobId: job.id } });
   return NextResponse.json({ jobId: job.id });
 }

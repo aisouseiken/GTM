@@ -11,6 +11,7 @@
 import type { Market } from "@/lib/domain/types";
 import type { DataSourceConnector, LeadCandidate, ConnectorSearchInput } from "./types";
 import { generateCompanyPool, stableFraction, type PoolCompany } from "@/lib/mock/pool";
+import { gbizConnector, gbizEnabled } from "./gbizinfo";
 
 // どの項目を埋めるコネクタか（部分データを再現するための指定）
 interface FieldProfile {
@@ -107,5 +108,10 @@ const GLOBAL_CONNECTORS: DataSourceConnector[] = [
 
 // 市場に応じてコネクタ一覧を返す（実データ源に差し替える差込口）
 export function getConnectors(market: Market): DataSourceConnector[] {
-  return market === "JP" ? JP_CONNECTORS : GLOBAL_CONNECTORS;
+  if (market === "JP") {
+    // gBizINFO のトークンが投入されていれば、公式の実データ源を先頭に追加する。
+    // （未設定ならモックのみ。＝クライアントがトークンを入れるだけで本物に切り替わる）
+    return gbizEnabled() ? [gbizConnector, ...JP_CONNECTORS] : JP_CONNECTORS;
+  }
+  return GLOBAL_CONNECTORS;
 }

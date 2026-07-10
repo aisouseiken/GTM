@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getWorkspace, listApiKeys, getApiKey, revokeApiKey } from "@/lib/data/store";
+import { getWorkspace, listApiKeys, getApiKey, revokeApiKey, addAudit } from "@/lib/data/store";
 import { issueApiKey } from "@/lib/auth/apikey";
 import type { ApiKey } from "@/lib/domain/types";
 
@@ -52,6 +52,7 @@ export async function DELETE(req: Request) {
   if (!ws || ws.ownerId !== user.id)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   revokeApiKey(keyId);
+  addAudit({ actor: `user:${user.id}`, action: "apikey.revoke", target: key.workspaceId, meta: { keyId } });
   return NextResponse.json({ ok: true });
 }
 
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
   // 新しいAPIキーを発行して返す。
   // raw は「発行直後だけ表示できる元の鍵文字列」で、この後は再表示できない点に注意
   const { apiKey, raw } = issueApiKey(workspaceId, name);
+  addAudit({ actor: `user:${user.id}`, action: "apikey.issue", target: workspaceId, meta: { keyId: apiKey.id } });
   // apiKey は公開用に絞って返す（keyHashは出さない）。raw は発行直後のみ表示する生の鍵。
   return NextResponse.json({ apiKey: toPublic(apiKey), raw });
 }

@@ -148,11 +148,17 @@ export default function Home() {
         </p>
       </section>
 
-      {/* footer：ページ最下部。ロゴと著作権表示を置く */}
+      {/* footer：ページ最下部。ロゴ・法務リンク・著作権表示を置く */}
       <footer className="border-t border-line/60 py-10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row">
           <Logo />
-          <p className="text-xs text-muted">© 2026 GTM. All rights reserved.</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted">
+            <Link href="/legal/terms" className="hover:text-ink">利用規約</Link>
+            <Link href="/legal/privacy" className="hover:text-ink">プライバシーポリシー</Link>
+            <Link href="/legal/tokushoho" className="hover:text-ink">特定商取引法に基づく表記</Link>
+            <Link href="/optout" className="hover:text-ink">オプトアウト</Link>
+            <span>© 2026 GTM</span>
+          </div>
         </div>
       </footer>
     </div>

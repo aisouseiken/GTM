@@ -15,6 +15,7 @@ export interface User {
   id: string; // ユーザーを一意に識別するID
   email: string; // メールアドレス
   name: string; // 表示名
+  passwordHash?: string; // パスワードのハッシュ（そのままは保存しない）
   createdAt: number; // 作成日時（数値のタイムスタンプ）
 }
 
@@ -193,6 +194,16 @@ export interface Subscription {
   plan: Plan; // 契約プラン
   status: "active" | "past_due" | "canceled" | "incomplete"; // 状態（有効/支払遅延/解約/未完了）
   currentPeriodEnd?: number; // 現在の課金期間の終了日時
+}
+
+// 監査ログ：誰がいつ何をしたかの記録（不正利用の追跡・コンプラ対応に使う）。
+export interface AuditLog {
+  id: string;
+  at: number; // 発生時刻
+  actor: string; // 実行者（例: "user:usr_xxx" / "apikey:key_xxx" / "public"）
+  action: string; // 操作（例: "login" / "search" / "export" / "apikey.issue" / "optout"）
+  target?: string; // 対象（例: workspaceId / jobId など）
+  meta?: Record<string, unknown>; // 補足情報
 }
 
 // クレジットの増減記録（1件ずつの入出金履歴）。

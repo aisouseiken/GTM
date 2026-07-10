@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bearerFrom, resolveApiKey } from "@/lib/auth/apikey";
-import { getWorkspace, getWallet, saveApiKey, getJob, countActiveJobs } from "@/lib/data/store";
+import { getWorkspace, getWallet, saveApiKey, getJob, countActiveJobs, addAudit } from "@/lib/data/store";
 import { PLAN_INFO } from "@/lib/domain/types";
 import { createPlan } from "@/lib/agent/planner";
 import { createJob, runSearchJob } from "@/lib/agent/runner";
@@ -63,6 +63,8 @@ export async function POST(req: Request) {
   const plan = createPlan(ws.id, "api", body.prompt, market, maxResults);
   // プランからジョブを作成する
   const job = createJob(plan);
+  // 監査ログ：どのAPIキーで検索が実行されたかを記録
+  addAudit({ actor: `apikey:${key.id}`, action: "search.api", target: ws.id, meta: { jobId: job.id } });
   // API 経由は同期実行（完了まで待つ）
   // ※画面向けのSSEと違い、進捗通知は使わないので送信関数は空にしている
   await runSearchJob(job.id, () => {});
