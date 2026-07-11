@@ -263,10 +263,16 @@ export function listJobs(wid: string): Job[] {
     .sort((a, b) => b.startedAt - a.startedAt); // 開始時刻の新しい順に並べる
 }
 // 実行中（順番待ち/実行中/検証中）のジョブ数を数える（同時実行の上限チェック用）。
+// ★2分以上 queued のまま動き出さないジョブは「孤立ジョブ」とみなして数えない。
+//   （POST後にストリームが開かれず放置されたジョブが、同時実行枠を永久に塞ぐのを防ぐ）
 export function countActiveJobs(wid: string): number {
-  return [...db.jobs.values()].filter(
-    (j) => j.workspaceId === wid && (j.status === "queued" || j.status === "running" || j.status === "verifying")
-  ).length;
+  const now = Date.now();
+  return [...db.jobs.values()].filter((j) => {
+    if (j.workspaceId !== wid) return false;
+    if (j.status === "running" || j.status === "verifying") return true;
+    if (j.status === "queued") return now - j.startedAt < 2 * 60_000; // 2分以内のqueuedのみ有効
+    return false;
+  }).length;
 }
 
 // 同時実行の「予約」カウンタ（ワークスペース別）。
@@ -454,23 +460,55 @@ export function listAudits(target: string, limit = 50): AuditLog[] {
 
 // ---- オプトアウト抑制リスト（メール/ドメインを配信・取得から除外）----
 // オプトアウト＝相手が「連絡してこないで」と拒否すること。ここではその対象を登録する。
+// 抑制リストの照合キーを統一する正規化関数（登録側・判定側で必ず同じ変換を使う）。
+// ★以前は登録と判定で www. の扱い等がバラバラで、除外したはずが漏れるバグがあった。
+//   NFKC で全角→半角に、小文字化、前後空白・末尾ドット・先頭 www. を除去してキーをそろえる。
+function normSuppressKey(s: string): string {
+  return s.normalize("NFKC").trim().toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+}
+// ---- オプトアウト抑制リスト（メール/ドメインを配信・取得から除外）----
 export function addSuppression(value: string): void {
-  const v = value.trim().toLowerCase(); // 前後の空白を削り小文字にそろえる（表記ゆれ対策）
+  const v = normSuppressKey(value); // 登録も同じ正規化キーで
   if (v) db.suppression.add(v); // 空でなければ抑制リストに追加
 }
 // メール（とそのドメイン）が抑制対象かどうか
 export function isSuppressed(email?: string): boolean {
   if (!email) return false; // メールが無ければ対象外
-  const e = email.trim().toLowerCase(); // 比較用に整える
-  if (db.suppression.has(e)) return true; // メール完全一致で抑制されていれば true
-  const at = e.lastIndexOf("@"); // 「@」の位置を探す（ドメイン部分を取り出すため）
+  const e = normSuppressKey(email); // 比較用に正規化
+  if (db.suppression.has(e)) return true; // メール完全一致
+  const at = e.lastIndexOf("@"); // 「@」の位置（ドメイン部分を取り出す）
   if (at >= 0 && db.suppression.has(e.slice(at + 1))) return true; // ドメイン単位の抑制
-  return false; // どれにも当たらなければ対象外
+  return false;
 }
-// 会社のドメインそのものが抑制対象かどうか（メールが未取得のリードでもドメイン抑制を効かせるため）。
+// 会社のドメインそのものが抑制対象かどうか（メール未取得のリードでもドメイン抑制を効かせる）。
 export function isDomainSuppressed(domain?: string): boolean {
-  if (!domain) return false; // ドメインが無ければ対象外
-  const d = domain.trim().toLowerCase().replace(/^www\./, ""); // 比較用に整える（www.は除く）
-  return db.suppression.has(d); // ドメイン完全一致で抑制されていれば true
+  if (!domain) return false;
+  return db.suppression.has(normSuppressKey(domain)); // 同じ正規化キーで照合
+}
+// 抑制対象の連絡先に一致するリードを、保存済みデータから削除する（「削除請求」への実対応）。
+// value はメール完全一致 または ドメイン一致。削除した件数を返す。
+export function deleteLeadsByContact(value: string): number {
+  const key = normSuppressKey(value);
+  if (!key) return 0;
+  const isDomain = !key.includes("@"); // @が無ければドメイン指定とみなす
+  let removed = 0;
+  const removedIds = new Set<string>();
+  for (const [id, l] of db.leads) {
+    const email = l.email ? normSuppressKey(l.email) : "";
+    const dom = l.domain ? normSuppressKey(l.domain) : "";
+    const hit = isDomain ? (dom === key || email.endsWith("@" + key)) : email === key;
+    if (hit) {
+      db.leads.delete(id); // リード本体を削除
+      removedIds.add(id);
+      removed++;
+    }
+  }
+  // 保存済みリストからも該当リードIDを取り除く
+  if (removedIds.size) {
+    for (const list of db.lists.values()) {
+      list.leadIds = list.leadIds.filter((lid) => !removedIds.has(lid));
+    }
+  }
+  return removed;
 }
 

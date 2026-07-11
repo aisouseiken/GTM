@@ -13,7 +13,9 @@ import type { LeadCandidate } from "@/lib/connectors/types";
 // ドメインを小文字化し www. や先頭のプロトコルを除去
 export function normalizeDomain(domain: string): string {
   return domain
+    .normalize("NFKC") // 全角→半角にそろえる（ＥＸＡＭＰＬＥ.COM → example.com として名寄せできる）
     .trim() // ★先に前後の空白を除く（後回しだとプロトコル除去などが空白でズレて誤正規化になる）
+    .replace(/[\u200b-\u200f\u00ad\ufeff]/g, "") // ゼロ幅スペース等の見えない文字を除去
     .toLowerCase() // 大文字小文字の違いをなくす（Example.com → example.com）
     .replace(/^https?:\/\//, "") // 先頭の http:// や https:// を取り除く
     .replace(/^www\./, "") // 先頭の www. を取り除く
@@ -22,7 +24,7 @@ export function normalizeDomain(domain: string): string {
 // 電話番号は数字だけにして比較（ハイフンや+の違いを吸収）
 export function normalizePhone(phone?: string): string | undefined {
   if (!phone) return undefined; // 電話番号が無ければ「なし」を返す
-  const digits = phone.replace(/[^0-9]/g, ""); // 数字以外（ハイフン・かっこ・+など）を全部取り除く
+  const digits = phone.normalize("NFKC").replace(/[^0-9]/g, ""); // 全角数字も半角にそろえてから数字だけ抜き出す
   return digits.length >= 8 ? digits : undefined; // 8桁以上あれば有効な番号とみなす。短すぎれば「なし」
 }
 

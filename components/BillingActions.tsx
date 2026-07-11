@@ -22,12 +22,14 @@ export function PlanChangeButton({
   highlight?: boolean;
 }) {
   const [loading, setLoading] = useState(false); // 処理中かどうか（二重押し防止）。
+  const [error, setError] = useState<string | null>(null); // 失敗時のメッセージ（無言失敗を防ぐ）
   const router = useRouter(); // 画面の再表示などに使う。
 
   // ボタンが押されたときの処理。
   const onClick = async () => {
     if (current || loading) return; // 今のプラン、または処理中なら何もしない。
     setLoading(true);
+    setError(null);
     try {
       // サーバーに「このプランに変えたい」と伝える。
       const res = await fetch("/api/stripe/checkout", {
@@ -35,33 +37,47 @@ export function PlanChangeButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workspaceId, plan }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // ★失敗（403/503等）を無言でにぎりつぶさず、ユーザーに伝える（本番で決済未設定時など）
+        setError(
+          res.status === 503
+            ? "現在、決済の準備中のため変更できません。"
+            : (data.error ?? "プランを変更できませんでした。")
+        );
+        return;
+      }
       if (data.mode === "stripe" && data.url) {
         window.location.href = data.url; // Stripe Checkout へ遷移（支払いページへ移動）
       } else {
         // モック：プラン適用済み。画面を更新
-        // （決済が未設定の環境では、その場でプランが切り替わるので画面を再読み込みする）
         router.refresh();
       }
+    } catch {
+      setError("通信に失敗しました。もう一度お試しください。");
     } finally {
       setLoading(false); // 成功・失敗どちらでも最後に処理中を解除。
     }
   };
 
   return (
-    <button
-      onClick={onClick}
-      disabled={current || loading}
-      className={`mt-4 w-full rounded-full px-4 py-2 text-sm font-medium ${
-        current
-          ? "cursor-default border border-line text-muted"
-          : highlight
-            ? "bg-ink text-white"
-            : "border border-line-strong bg-paper text-ink hover:bg-cream-100"
-      }`}
-    >
-      {current ? "利用中" : loading ? "処理中…" : "変更する"}
-    </button>
+    <>
+      <button
+        onClick={onClick}
+        disabled={current || loading}
+        className={`mt-4 w-full rounded-full px-4 py-2 text-sm font-medium ${
+          current
+            ? "cursor-default border border-line text-muted"
+            : highlight
+              ? "bg-ink text-white"
+              : "border border-line-strong bg-paper text-ink hover:bg-cream-100"
+        }`}
+      >
+        {current ? "利用中" : loading ? "処理中…" : "変更する"}
+      </button>
+      {/* 失敗したときのメッセージ（無言失敗を防ぐ） */}
+      {error && <p className="mt-2 text-xs text-[#9a3b3b]">{error}</p>}
+    </>
   );
 }
 

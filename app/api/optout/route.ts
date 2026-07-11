@@ -1,7 +1,7 @@
 // 「応答（サーバーからの返事）」を作るための道具を読み込む
 import { NextResponse } from "next/server";
-// データ保管庫の道具を読み込む（除外リストへの追加・監査ログの記録）
-import { addSuppression, addAudit } from "@/lib/data/store";
+// データ保管庫の道具を読み込む（除外リストへの追加・保存済みリードの削除・監査ログの記録）
+import { addSuppression, deleteLeadsByContact, addAudit } from "@/lib/data/store";
 // 「短時間に何度も叩かれていないか（乱用防止）」を判定する道具を読み込む
 import { rateLimit } from "@/lib/ratelimit";
 
@@ -12,8 +12,15 @@ import { rateLimit } from "@/lib/ratelimit";
  * ※「ドメイン」＝メールアドレスの＠より後ろ（例：example.com）の部分。会社まるごと除外したいときに使う。
  */
 export async function POST(req: Request) {
-  // リクエストの本文（送られてきたデータ）をJSONとして読み取る。壊れていたら null 扱いにする
-  const body = await req.json().catch(() => null);
+  // ★巨大ボディDoS対策：ログイン不要の窓口なので、本文が大きすぎる場合は読み込まずに拒否する。
+  //   Content-Length で 10KB を超えたら 413（大きすぎ）。ヘッダー偽装に備え、本文の実長も後で確認。
+  const len = Number(req.headers.get("content-length") || 0);
+  if (len > 10_000) return NextResponse.json({ error: "payload too large" }, { status: 413 });
+  const raw = await req.text().catch(() => "");
+  if (raw.length > 10_000) return NextResponse.json({ error: "payload too large" }, { status: 413 });
+  // 本文（JSON）を読み取る。壊れていたら null 扱いにする
+  let body: { value?: unknown } | null = null;
+  try { body = JSON.parse(raw); } catch { body = null; }
   // 読み取れなかった場合は「400（リクエストが不正）」を返して中断する
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
   // 送られてきた値を文字列にし、前後の空白を除き、すべて小文字にそろえる（表記ゆれをなくすため）
@@ -28,11 +35,12 @@ export async function POST(req: Request) {
   if (!rateLimit(`optout:${value}`, 5, 60 * 60_000)) {
     return NextResponse.json({ error: "しばらくしてからお試しください。" }, { status: 429 });
   }
-  // 受け付けた値を「除外リスト（提供・配信しない一覧）」に追加する
+  // 受け付けた値を「除外リスト（提供・配信しない一覧）」に追加する（今後の取得を止める）
   addSuppression(value);
+  // ★既に保有している該当リードも削除する（画面・ポリシーで「既存データも削除」と約束しているため）
+  const deleted = deleteLeadsByContact(value);
   // 「誰が・何を・どの対象に対して行ったか」を監査ログ（後から確認できる記録）に残す
-  // actor は "public"（＝ログインしていない一般利用者）
-  addAudit({ actor: "public", action: "optout", target: value });
-  // 正常に受け付けたことを伝える（ok: true）
-  return NextResponse.json({ ok: true });
+  addAudit({ actor: "public", action: "optout", target: value, meta: { deleted } });
+  // 正常に受け付けたことを伝える（削除件数も返す）
+  return NextResponse.json({ ok: true, deleted });
 }

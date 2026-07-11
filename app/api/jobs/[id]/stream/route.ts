@@ -42,31 +42,45 @@ export async function GET(
     // start = ストリームが始まった瞬間に動く処理。controller は「流れに書き込む係」。
     async start(controller) {
       let closed = false; // この流れが既に閉じたかどうかの目印（閉じた後に書き込むとエラーになるため）
-      // 進捗イベント1件を、SSEの決まった形（"data: 中身\n\n"）にして送信する関数。
-      // ★相手（画面）が既に接続を切っている場合に書き込むとエラーになるので、
-      //   closed の目印と try/catch（エラーを捕まえる仕組み）で守っている。
-      const send = (ev: JobEvent) => {
-        if (closed) return; // 既に閉じていれば何もしない
+      const write = (text: string) => {
+        if (closed) return;
         try {
-          // イベントを文字→バイト列に変換して流れに書き込む（JSON.stringify＝データを文字列化）
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
+          controller.enqueue(encoder.encode(text));
         } catch {
-          closed = true; // 書き込みに失敗＝相手が切れたとみなし、以後は送らない
+          closed = true; // 書き込み失敗＝相手が切れたとみなす
         }
       };
+      // 進捗イベント1件を SSE 形式（"data: 中身\n\n"）で送る。
+      const send = (ev: JobEvent) => write(`data: ${JSON.stringify(ev)}\n\n`);
+      // ★ハートビート：15秒ごとにコメント行(: ping)を送る。長い無送信でプロキシ(Render等)に
+      //   接続を切られてスピナーが固まるのを防ぐ。
+      const heartbeat = setInterval(() => write(`: ping\n\n`), 15_000);
       try {
-        // ジョブ本体を実行する。進捗が出るたびに上の send が呼ばれて画面へ届く。
-        // req.signal は「画面側が接続を切ったよ」という合図。これを渡すことで、途中で無駄な処理を止められる。
-        await runSearchJob(id, send, req.signal);
+        // ★再接続対応：ジョブが既に走り出している(queuedでない)場合は、二重実行せず
+        //   これまでの進捗イベント履歴を再生する。こうしないと再接続した画面は completed を
+        //   受け取れず、スピナーが永遠に回り続ける。
+        const current = getJob(id);
+        if (current && current.status !== "queued") {
+          for (const ev of current.events) send(ev); // 履歴を再生
+          // 既に終了している状態なら、画面が確実に「完了/一部完了/失敗」を認識できるよう最終状態を送る。
+          if (current.status === "done" || current.status === "partial") {
+            send({ type: "completed", message: "完了", at: Date.now(), payload: { status: current.status, count: current.resultCount, credits: current.creditsSpent } });
+          } else if (current.status === "failed") {
+            send({ type: "failed", message: "失敗", at: Date.now() });
+          }
+        } else {
+          // 初回：ジョブ本体を実行する。進捗が出るたびに send が呼ばれて画面へ届く。
+          // req.signal は「画面側が接続を切った」合図。途中で無駄な処理を止められる。
+          await runSearchJob(id, send, req.signal);
+        }
       } catch (e) {
         // 途中でエラーが起きたら、「失敗した」という進捗イベントを送って知らせる
         send({ type: "failed", message: (e as Error).message, at: Date.now() });
       } finally {
-        // 成功・失敗どちらでも最後に必ず実行される後片付け。
-        // まだ閉じていなければ「終了(end)」の合図を送り、流れをきちんと閉じる（ここでのエラーは無視する）。
+        clearInterval(heartbeat); // ハートビートを止める
         if (!closed) {
           try {
-            controller.enqueue(encoder.encode(`event: end\ndata: {}\n\n`)); // 終了イベントを送信
+            controller.enqueue(encoder.encode(`event: end\ndata: {}\n\n`)); // 終了イベント
             controller.close(); // 流れを閉じる
           } catch {
             /* すでに閉じている場合は無視 */

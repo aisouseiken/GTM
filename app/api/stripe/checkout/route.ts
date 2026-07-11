@@ -20,13 +20,21 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
   const { workspaceId, plan } = body as { workspaceId: string; plan: Plan };
-  // ★プランはホワイトリスト検証（有料プランのみ許可。未知値でクラッシュさせない）
-  if (!["starter", "pro", "scale"].includes(plan))
+  // ★プランはホワイトリスト検証（free＋有料3種のみ許可。未知値でクラッシュさせない）
+  if (!["free", "starter", "pro", "scale"].includes(plan))
     return NextResponse.json({ error: "invalid plan" }, { status: 400 });
   // 所有者確認：そのワークスペースが本人のものかを確認する
   const ws = getWorkspace(workspaceId);
   if (!ws || ws.ownerId !== user.id)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  // ★Freeへのダウングレードは決済不要。即時に契約を解約扱いにしてプランをFreeへ（クレジットは付与しない）。
+  //   以前はFreeを弾いて400を返し、画面は無言でリロードするだけ＝「押しても何も起きない」不具合だった。
+  if (plan === "free") {
+    setWorkspacePlan(workspaceId, "free");
+    upsertSubscription(workspaceId, { plan: "free", status: "canceled" });
+    return NextResponse.json({ url: `${new URL(req.url).origin}/app/w/${workspaceId}/billing?downgraded=1`, mode: "mock" });
+  }
 
   // 決済後に戻ってくる請求ページのURLを組み立てる
   // 今アクセスされているサイトの土台部分のURL（例: https://example.com）を取り出す
@@ -66,12 +74,12 @@ export async function POST(req: Request) {
   }
 
   // 開発環境のモック：プランを即時適用（Webビュー相当の処理をここで代替実行）。
-  // ★冪等化：同じワークスペース×プラン×同じ月では二度と付与しない（連打による無限増殖を防止）。
-  // ★冪等キーは「ワークスペース×月」（プランを含めない）。
-  //   プランを往復（starter→pro→starter）してもその月は1回しか付与しない＝無限増殖を完全に防ぐ。
+  // ★冪等化：同じワークスペース×プラン×同じ月では二度と付与しない。
+  //   キーにプランを含めることで、アップグレード時（例 starter→pro）は別キー＝正しく付与され、
+  //   同じプランの連打・往復は同キー＝再付与されない（＝増殖はプラン種類数ぶんに限定＝安全）。
   const ym = new Date().toISOString().slice(0, 7); // 例: "2026-07"（今の年と月を取り出す）
   setWorkspacePlan(workspaceId, plan); // 契約プランを選ばれたプランに設定する
-  grantMonthlyCredits(workspaceId, plan, `mock:${workspaceId}:${ym}`); // 当月分のクレジットを付与（第3引数は二重付与を防ぐ合言葉）
+  grantMonthlyCredits(workspaceId, plan, `mock:${workspaceId}:${plan}:${ym}`); // 当月分のクレジットを付与（プラン込みキーで二重付与防止）
   upsertSubscription(workspaceId, { plan, status: "active" }); // 契約情報を「有効」で保存・更新する
   // モックのURLを返す（画面側は決済ページに飛ばず、その場でプラン切替済みとして扱う）
   return NextResponse.json({ url: `${billingUrl}?checkout=mock`, mode: "mock" });

@@ -122,24 +122,27 @@ export function Workspace({
     // EventSource（SSE）= サーバーから小さな更新を1件ずつ送ってもらう仕組み。
     // これにより、検索の進捗やリードを「見つかった順」に逐次受け取って画面へ反映できます。
     const ev = new EventSource(`/api/jobs/${jid}/stream`);
+    let finished = false; // 正常に終了(end/completed/failed)したかどうか（onerrorと区別するため）
     // サーバーからメッセージが届くたびに呼ばれる処理
     ev.onmessage = async (e) => {
       const data = JSON.parse(e.data); // 届いた文字列を JSON として解釈
       if (data.type === "lead") {
         // リード1件を取得して追加（逐次表示）
-        const r = await fetch(`/api/leads?jobId=${jid}`); // このジョブで今までに見つかったリードを取りに行く
-        const { leads: fresh } = await r.json(); // 返ってきたデータから leads 部分を取り出す
-        setLeads(fresh); // 最新のリード一覧で画面を更新
+        const r = await fetch(`/api/leads?jobId=${jid}`).catch(() => null); // 途中の取得失敗でも落ちないように
+        if (r) { const { leads: fresh } = await r.json(); setLeads(fresh); }
       } else if (data.type === "completed") {
-        // 検索がすべて完了したとき
-        pushProgress(data.message, "ok");
-        const r = await fetch(`/api/leads?jobId=${jid}`);
-        const { leads: fresh } = await r.json();
-        setLeads(fresh);
-        setPhase("done"); // 状態を「完了」に
+        // 検索が完了したとき。payload.status が "partial" なら「一部完了（残高不足等で中断）」を明示する。
+        finished = true;
+        const partial = data.payload?.status === "partial";
+        pushProgress(data.message, partial ? "info" : "ok");
+        if (partial) pushProgress("※ 残高不足などのため、一部の取得で終了しました（未完）", "info");
+        const r = await fetch(`/api/leads?jobId=${jid}`).catch(() => null);
+        if (r) { const { leads: fresh } = await r.json(); setLeads(fresh); }
+        setPhase("done"); // 表示上は完了（部分完了はログで明示）
         router.refresh(); // サーバー描画のヘッダー残高（クレジット）を最新化
       } else if (data.type === "failed") {
         // ★検索が失敗したとき：エラーを表示し、状態を戻す（＝無限にスピナーが回るのを防ぐ）
+        finished = true;
         pushProgress(`エラー：${data.message}`, "info");
         setPhase(plan ? "plan_ready" : "idle"); // 再実行できる状態に戻す
         router.refresh();
@@ -149,9 +152,16 @@ export function Workspace({
       }
     };
     // サーバーから「終了」の合図が来たら接続を閉じる（クリーンアップ = 後始末）
-    ev.addEventListener("end", () => ev.close());
-    // 通信エラーが起きた場合も接続を閉じる
-    ev.onerror = () => ev.close();
+    ev.addEventListener("end", () => { finished = true; ev.close(); });
+    // ★通信エラー時：正常終了していない＝途中で切れた場合は、エラー表示して状態を戻す
+    //   （これをしないと画面が「実行中…」のまま永久にスピナーが回り続ける）
+    ev.onerror = () => {
+      ev.close();
+      if (!finished) {
+        pushProgress("通信が途切れました。もう一度お試しください。", "info");
+        setPhase((p) => (p === "running" ? (plan ? "plan_ready" : "idle") : p));
+      }
+    };
   }, [plan, router]);
 
   // 「除外」されていないリードだけを表示対象として絞り込む

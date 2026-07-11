@@ -72,6 +72,8 @@ export async function POST(req: Request) {
   }
 
   // 予約したので、以降どの経路で抜けても必ず枠を解放するよう try/finally で包む。
+  let released = false; // 予約枠を解放済みか（ジョブ作成後は実ジョブ数で数えるので予約は解放する）
+  const release = () => { if (!released) { released = true; releaseJob(ws.id); } };
   try {
     // クレジット（利用ポイント）の財布(ウォレット)を取り出して残高を確認する
     // 財布が無い、または残高が0以下なら「402（支払い／残高が必要）」を返す
@@ -85,6 +87,9 @@ export async function POST(req: Request) {
     const plan = await createPlanSmart(ws.id, "api", body.prompt, market, maxResults);
     // 作った検索プランから、実際に走らせる「ジョブ」を作成する
     const job = createJob(plan);
+    // ★ジョブが queued として登録され countActiveJobs に数えられるようになったので、予約枠は解放する。
+    //   （解放しないと「予約1＋実行中ジョブ1」で二重に枠を消費し、実効の同時実行数が半減する）
+    release();
     // 監査ログ（後から確認できる記録）に残す
     addAudit({ actor: `apikey:${key.id}`, action: "search.api", target: ws.id, meta: { jobId: job.id } });
     // API経由は完了まで待つ（同期実行）。通知は不要なので空関数を渡す。
@@ -94,6 +99,6 @@ export async function POST(req: Request) {
     const finished = getJob(job.id);
     return NextResponse.json({ job_id: job.id, status: finished?.status ?? "queued" });
   } finally {
-    releaseJob(ws.id); // 予約枠を解放（成功・失敗・例外いずれでも必ず実行）
+    release(); // まだ解放していなければ（プラン作成前の離脱など）ここで解放
   }
 }

@@ -135,10 +135,13 @@ function cityFor(icp: StructuredICP, jp: boolean, rng: () => number): string {
 }
 
 // 検索プランに対する“真の企業プール”を決定的に生成する。
-export function generateCompanyPool(icp: StructuredICP, planId: string, size: number): PoolCompany[] {
+export function generateCompanyPool(icp: StructuredICP, _planId: string, size: number): PoolCompany[] {
   const jp = icp.market === "JP"; // 日本市場かどうか
-  // プランID・業種・地域・件数を混ぜて「種」を作り、そこから乱数を用意する（同条件なら毎回同じ企業一覧になる）。
-  const rng = mulberry32(seedFrom(planId + icp.industry + icp.location + size));
+  // ★「種」は検索条件（市場・業種・地域・シグナル・件数）だけから作る。
+  //   以前はランダムな planId を混ぜていたため、同じ文言で検索しても毎回別の企業一覧になり、
+  //   「同条件なら再現される」という説明と矛盾していた。planId を外して“文言で再現”できるようにする。
+  const seedKey = icp.market + "|" + icp.industry + "|" + icp.location + "|" + [...icp.signals].sort().join(",") + "|" + size;
+  const rng = mulberry32(seedFrom(seedKey));
   const suffixPool = suffixPoolFor(icp, jp); // 業種に合わせた「会社名の末尾」候補（例: 美容室・ヘアサロン）
   const out: PoolCompany[] = []; // 生成した企業を貯める入れ物
   for (let i = 0; i < size; i++) { // 指定件数(size)だけ企業を作る
