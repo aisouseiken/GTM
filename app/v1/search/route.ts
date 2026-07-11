@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 // APIキー（合言葉）関連の道具を読み込む（bearerFrom＝ヘッダーから合言葉を取り出す／resolveApiKey＝有効か照合する）
 import { bearerFrom, resolveApiKey } from "@/lib/auth/apikey";
 // データ保管庫の道具を読み込む（ワークスペース取得・ウォレット取得・APIキー保存・ジョブ取得・実行中ジョブ数の集計・監査ログ記録）
-import { getWorkspace, getWallet, saveApiKey, getJob, countActiveJobs, addAudit } from "@/lib/data/store";
+import { getWorkspace, getWallet, saveApiKey, getJob, tryReserveJob, releaseJob, addAudit } from "@/lib/data/store";
 // 料金プランごとの情報（同時に動かせるジョブ数などの上限）を読み込む
 import { PLAN_INFO } from "@/lib/domain/types";
 // 指示文から「検索プラン（何をどう検索するかの計画）」を作る道具を読み込む
@@ -64,35 +64,36 @@ export async function POST(req: Request) {
   //   それ以外の見慣れない値が来たら、ワークスペースの設定(ws.market)を使う（送られてきた型の申告を鵜呑みにせず実際に中身を確認する）
   const market = body.market === "JP" || body.market === "GLOBAL" ? body.market : ws.market;
 
-  // 今このワークスペースで動いているジョブ数が、料金プランで決められた「同時実行の上限」に達していないか確認する
-  // 達していたら「429（同時に動かせるジョブが多すぎる）」を返して中断する
-  if (countActiveJobs(ws.id) >= PLAN_INFO[ws.plan].concurrency) {
+  // 今このワークスペースで動いているジョブ数が、料金プランで決められた「同時実行の上限」に達していないか確認する。
+  // ★ここで「予約」まで同期的に行う（tryReserveJob）。プラン作成(await)の前に枠を確保することで、
+  //   複数リクエストが同時にチェックをすり抜けて過剰実行・過剰課金するのを防ぐ。
+  if (!tryReserveJob(ws.id, PLAN_INFO[ws.plan].concurrency)) {
     return NextResponse.json({ error: "too_many_running_jobs" }, { status: 429 });
   }
 
-  // クレジット（利用ポイント）の財布(ウォレット)を取り出して残高を確認する
-  // 財布が無い、または残高が0以下なら「402（支払い／残高が必要）」を返す
-  // （「!wallet ||」を先に置くことで、財布が無いケースをすり抜けさせない）
-  const wallet = getWallet(ws.id);
-  if (!wallet || wallet.balance <= 0)
-    return NextResponse.json({ error: "insufficient_credits" }, { status: 402 });
+  // 予約したので、以降どの経路で抜けても必ず枠を解放するよう try/finally で包む。
+  try {
+    // クレジット（利用ポイント）の財布(ウォレット)を取り出して残高を確認する
+    // 財布が無い、または残高が0以下なら「402（支払い／残高が必要）」を返す
+    const wallet = getWallet(ws.id);
+    if (!wallet || wallet.balance <= 0)
+      return NextResponse.json({ error: "insufficient_credits" }, { status: 402 });
 
-  // 取得件数を 1〜250 の範囲におさめる（未指定なら100件）
-  // マイナス・0・極端に大きい数・数値でない入力を弾き、件数計算がおかしくならないようにする
-  const maxResults = Math.max(1, Math.min(Number(body.max_results) || 100, 250));
-  // 指示文をもとに検索プラン（何をどう検索するかの計画）を作る（"api" は、この検索がAPI経由であることを表す印）
-  const plan = await createPlanSmart(ws.id, "api", body.prompt, market, maxResults);
-  // 作った検索プランから、実際に走らせる「ジョブ」を作成する
-  const job = createJob(plan);
-  // 「どのAPIキーで・どんな操作を・どのワークスペースに対して行ったか」を監査ログ（後から確認できる記録）に残す
-  addAudit({ actor: `apikey:${key.id}`, action: "search.api", target: ws.id, meta: { jobId: job.id } });
-  // API経由の呼び出しは、検索が終わるまでここで待ってから結果を返す（同期実行＝完了まで待つ方式）
-  // ※画面向けの逐次通知（SSE）と違い、途中経過を送る必要がないので、通知用の関数は「何もしない空の関数」にしている
-  await runSearchJob(job.id, () => {});
+    // 取得件数を 1〜250 の範囲におさめる（未指定なら100件）。小数は切り捨てて整数にする。
+    const maxResults = Math.max(1, Math.min(Math.floor(Number(body.max_results)) || 100, 250));
+    // 指示文をもとに検索プラン（何をどう検索するかの計画）を作る（"api" は、API経由の印）
+    const plan = await createPlanSmart(ws.id, "api", body.prompt, market, maxResults);
+    // 作った検索プランから、実際に走らせる「ジョブ」を作成する
+    const job = createJob(plan);
+    // 監査ログ（後から確認できる記録）に残す
+    addAudit({ actor: `apikey:${key.id}`, action: "search.api", target: ws.id, meta: { jobId: job.id } });
+    // API経由は完了まで待つ（同期実行）。通知は不要なので空関数を渡す。
+    await runSearchJob(job.id, () => {});
 
-  // 実行後の最新のジョブ状態を取り出す
-  const finished = getJob(job.id);
-  // ジョブのIDと、実際の最終状態（done＝完了／partial＝一部完了／failed＝失敗 など）を返す
-  // ※万一状態が取れなくても "queued"（順番待ち）を仮に返して、値が空にならないようにする
-  return NextResponse.json({ job_id: job.id, status: finished?.status ?? "queued" });
+    // ジョブのIDと最終状態を返す（取れなくても "queued" を仮に返す）
+    const finished = getJob(job.id);
+    return NextResponse.json({ job_id: job.id, status: finished?.status ?? "queued" });
+  } finally {
+    releaseJob(ws.id); // 予約枠を解放（成功・失敗・例外いずれでも必ず実行）
+  }
 }

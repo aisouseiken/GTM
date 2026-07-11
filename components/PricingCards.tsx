@@ -24,10 +24,12 @@ const FEATURES: { label: string; values: Record<Plan, Val> }[] = [
   { label: "検証済みメール・電話", values: { free: false, starter: true, pro: true, scale: true, enterprise: true } },
   { label: "信頼度スコア", values: { free: true, starter: true, pro: true, scale: true, enterprise: true } },
   { label: "CSVエクスポート", values: { free: false, starter: true, pro: true, scale: true, enterprise: true } },
-  { label: "Sequencer", values: { free: true, starter: true, pro: true, scale: true, enterprise: true } },
+  // Sequencer は未実装のため「近日」表記（誇大表示を避ける）
+  { label: "Sequencer", values: { free: "近日", starter: "近日", pro: "近日", scale: "近日", enterprise: "近日" } },
   { label: "再現実行（スナップショット）", values: { free: false, starter: false, pro: true, scale: true, enterprise: true } },
   { label: "公開REST API", values: { free: false, starter: false, pro: true, scale: true, enterprise: true } },
-  { label: "CRM連携（HubSpot / Salesforce）", values: { free: false, starter: false, pro: true, scale: true, enterprise: true } },
+  // CRM連携も未提供のため「近日」表記（LeadDrawerの「最終フェーズで有効化」と整合）
+  { label: "CRM連携（HubSpot / Salesforce）", values: { free: false, starter: false, pro: "近日", scale: "近日", enterprise: "近日" } },
   { label: "優先サポート", values: { free: false, starter: false, pro: true, scale: true, enterprise: true } },
 ];
 

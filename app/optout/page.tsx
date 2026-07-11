@@ -91,25 +91,32 @@ export default function OptOutPage() {
             </Link>
           </div>
         ) : (
-          // 【入力時の表示】入力欄と送信ボタンを横並び（スマホでは縦並び）にする枠
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          // 【入力時の表示】<form>にして、入力欄でEnterを押しても送信できるようにする（スマホでは縦並び）
+          <form
+            onSubmit={(e) => {
+              e.preventDefault(); // ブラウザ標準の画面遷移を止めて、自前のsubmitを使う
+              submit();
+            }}
+            className="mt-6 flex flex-col gap-3 sm:flex-row"
+          >
             {/* メールアドレスやドメインを打ち込む入力欄 */}
             <input
               value={value} // 現在の入力内容を表示
               onChange={(e) => setValue(e.target.value)} // 文字が変わるたびに入力内容を覚え直す
+              aria-label="メールアドレスまたはドメイン" // 画面読み上げ用のラベル
               placeholder="you@company.com または company.com" // 何を入れればよいかの薄いお手本文字
               className="flex-1 rounded-xl border border-line-strong bg-paper px-4 py-3 text-sm outline-none focus:border-brand"
             />
-            {/* 送信ボタン */}
+            {/* 送信ボタン（type=submit で Enter でも送信される） */}
             <button
-              onClick={submit} // 押したら上で作ったsubmit（送信処理）を動かす
+              type="submit"
               disabled={status === "sending"} // 送信中は押せないようにする（二重送信の防止）
               className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
             >
               {/* 送信中は「送信中…」、それ以外は「除外を申請する」とボタン文字を切り替える */}
               {status === "sending" ? "送信中…" : "除外を申請する"}
             </button>
-          </div>
+          </form>
         )}
         {/* 状態が「失敗(error)」のときだけ、赤い文字でエラー内容を表示する */}
         {status === "error" && <p className="mt-3 text-sm text-[#9a3b3b]">{message}</p>}

@@ -269,6 +269,23 @@ export function countActiveJobs(wid: string): number {
   ).length;
 }
 
+// 同時実行の「予約」カウンタ（ワークスペース別）。
+// ★プラン作成(await)の前に同期的に枠を確保することで、複数リクエストが同時に上限チェックを
+//   すり抜けて過剰にジョブを走らせる（＝過剰課金）競合を防ぐ。
+const jobReservations = new Map<string, number>();
+// 空きがあれば1枠予約して true。上限に達していれば予約せず false。await を挟まない同期処理。
+export function tryReserveJob(wid: string, limit: number): boolean {
+  const reserved = jobReservations.get(wid) ?? 0; // 予約済み枠
+  if (countActiveJobs(wid) + reserved >= limit) return false; // 実行中＋予約が上限以上なら不可
+  jobReservations.set(wid, reserved + 1); // 1枠予約
+  return true;
+}
+// 予約を1枠解放する（ジョブ完了・失敗時に必ず呼ぶ）。
+export function releaseJob(wid: string): void {
+  const reserved = jobReservations.get(wid) ?? 0;
+  if (reserved > 0) jobReservations.set(wid, reserved - 1);
+}
+
 // ---- leads ----
 // リード（見込み客）を保存する（同じIDなら上書き）。
 export function saveLead(l: Lead) {

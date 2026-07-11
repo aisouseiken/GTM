@@ -84,8 +84,8 @@ export function LeadDrawer({
             </div>
           </div>
           {/* 右上の×ボタン。押すとパネルを閉じる */}
-          <button onClick={onClose} className="text-muted hover:text-ink">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+          <button onClick={onClose} aria-label="閉じる" className="text-muted hover:text-ink">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
               <path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z" />
             </svg>
           </button>

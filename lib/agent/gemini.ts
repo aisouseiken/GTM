@@ -75,16 +75,25 @@ export async function geminiExtractICP(
     const parsed = JSON.parse(text) as GeminiICP; // テキスト（JSON文字列）をオブジェクトに変換
 
     // 受け取った値を、このアプリで使う形（StructuredICP）に整える。欠けていれば無難な既定値を入れる。
+    // ★AIの返り値は信用しすぎない：必ず文字列化し、制御文字や注入に使われがちな記号(<>;"'`{}\)を
+    //   取り除き、長さも制限する。これが無いと「industryにHACKED<script>」等がリードに生で混入する。
+    const clean = (v: unknown, maxLen: number): string =>
+      String(v ?? "")
+        .replace(/[\u0000-\u001f<>;"'{}]/g, " ") // 制御文字と危険記号だけを空白に
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, maxLen);
     const market: Market =
       parsed.market === "GLOBAL" ? "GLOBAL" : parsed.market === "JP" ? "JP" : marketDefault;
-    const industry = (parsed.industry || "").trim() || "企業全般";
-    const industryKeywords =
-      Array.isArray(parsed.industryKeywords) && parsed.industryKeywords.length
-        ? parsed.industryKeywords.slice(0, 6).map(String) // 多すぎる場合は6個までに制限
-        : [industry];
-    const location =
-      (parsed.location || "").trim() || (market === "JP" ? "日本全国" : "United States");
-    const signals = Array.isArray(parsed.signals) ? parsed.signals.slice(0, 6).map(String) : [];
+    const industry = clean(parsed.industry, 40) || "企業全般";
+    const kw = Array.isArray(parsed.industryKeywords)
+      ? parsed.industryKeywords.map((k) => clean(k, 30)).filter(Boolean).slice(0, 6) // 各要素を掃除＋空を除く
+      : [];
+    const industryKeywords = kw.length ? kw : [industry];
+    const location = clean(parsed.location, 40) || (market === "JP" ? "日本全国" : "United States");
+    const signals = Array.isArray(parsed.signals)
+      ? parsed.signals.map((s) => clean(s, 30)).filter(Boolean).slice(0, 6)
+      : [];
 
     return {
       industry, // 業種ラベル

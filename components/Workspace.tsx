@@ -75,6 +75,7 @@ export function Workspace({
       setLeads([]);
       setProgress([]);
       setSaved(false);
+      setJobId(null); // ★前回ジョブのIDを消す（消さないとCSVリンクが前回結果を指したまま残る不具合になる）
       // サーバーの /api/plan にユーザーの指示を送り、AIに検索プランを作らせる（await = 返事が来るまで待つ）
       const res = await fetch("/api/plan", {
         method: "POST",
@@ -496,7 +497,17 @@ function ResultsTable({
             <tr
               key={l.id}
               onClick={() => onSelect(l)}
-              className="animate-row-in cursor-pointer border-t border-line/70 hover:bg-cream-100/40"
+              // キーボード操作対応：行にフォーカスでき、Enter/Space で詳細を開ける（マウスなしでも使える）
+              role="button"
+              tabIndex={0}
+              aria-label={`${l.companyName} の詳細を開く`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(l);
+                }
+              }}
+              className="animate-row-in cursor-pointer border-t border-line/70 hover:bg-cream-100/40 focus:bg-cream-100/60 focus:outline-none"
             >
               {/* #列：通し番号（0始まりなので +1 して1番から見せる） */}
               <td className="px-3 py-2 tabular-nums text-muted">{i + 1}</td>

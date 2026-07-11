@@ -30,6 +30,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // 使用フレームワークを外部に知らせる X-Powered-By ヘッダーを消す（不要な情報開示を減らす）
+  poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
