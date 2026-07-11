@@ -33,7 +33,7 @@ export function CompanyAvatar({ name }: { name: string }) {
   const idx = name.charCodeAt(0) % palette.length;
   return (
     <span
-      className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] text-[10px] font-semibold text-ink/70"
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] text-[10px] font-semibold text-ink/70"
       style={{ background: palette[idx] }}
     >
       {ch}

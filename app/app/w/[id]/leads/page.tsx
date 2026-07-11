@@ -78,7 +78,7 @@ export default async function LeadsPage({
                   <div className="mt-1 text-sm text-muted">{l.leadIds.length} 件のリード</div>
                   {/* 作成日時を日本の表記（年月日・時刻）で表示 */}
                   <div className="mt-3 text-xs text-muted">
-                    {new Date(l.createdAt).toLocaleString("ja-JP")}
+                    {new Date(l.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </div>
                 </Link>
               ))}

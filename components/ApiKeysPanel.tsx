@@ -28,22 +28,28 @@ export function ApiKeysPanel({
   const [keys, setKeys] = useState<PublicApiKey[]>(initialKeys); // 表示中のキー一覧。
   const [name, setName] = useState(""); // 入力欄に打ち込まれたキー名。
   const [freshKey, setFreshKey] = useState<string | null>(null); // 発行直後のキー（1回だけ全文表示）。
+  const [creating, setCreating] = useState(false); // 発行処理中か（二重発行を防ぐ）。
 
   // 「発行」ボタンを押したときの処理。サーバーに新しいキーの作成を頼む。
   // ※async（非同期）= サーバーからの返事を待ってから続きを進める書き方。
   const create = async () => {
-    // fetch = サーバーに問い合わせる命令。ここでは新規キー作成を依頼している。
-    const res = await fetch("/api/apikeys", {
-      method: "POST", // POST = 「新しく作って」という種類のお願い。
-      headers: { "Content-Type": "application/json" }, // 送るデータがJSON形式だと伝える。
-      // 送る中身：どの作業スペース用か＋キー名（未入力なら"API Key"を使う）。
-      body: JSON.stringify({ workspaceId, name: name || "API Key" }),
-    });
-    // サーバーからの返事を受け取り、扱いやすいデータに直す。
-    const data = await res.json();
-    setFreshKey(data.raw); // 発行された生のキー文字列を保存し、画面に表示する。
-    setKeys((k) => [data.apiKey, ...k]); // 一覧の先頭に新しいキーを追加（既存はそのまま後ろに）。
-    setName(""); // 入力欄を空に戻す。
+    if (creating) return; // 連打による二重発行を防ぐ
+    setCreating(true);
+    try {
+      // fetch = サーバーに問い合わせる命令。ここでは新規キー作成を依頼している。
+      const res = await fetch("/api/apikeys", {
+        method: "POST", // POST = 「新しく作って」という種類のお願い。
+        headers: { "Content-Type": "application/json" }, // 送るデータがJSON形式だと伝える。
+        body: JSON.stringify({ workspaceId, name: name || "API Key" }),
+      });
+      const data = await res.json();
+      if (!res.ok) return; // 上限超過(too_many_keys)等の失敗時は何もしない
+      setFreshKey(data.raw); // 発行された生のキー文字列を保存し、画面に表示する。
+      setKeys((k) => [data.apiKey, ...k]); // 一覧の先頭に新しいキーを追加（既存はそのまま後ろに）。
+      setName(""); // 入力欄を空に戻す。
+    } finally {
+      setCreating(false);
+    }
   };
 
   // 「失効」ボタン：漏れたキーを無効化する。サーバーに削除（失効）を頼み、一覧からも消す。
@@ -71,9 +77,10 @@ export function ApiKeysPanel({
         />
         <button
           onClick={create}
-          className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white"
+          disabled={creating}
+          className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
         >
-          発行
+          {creating ? "発行中…" : "発行"}
         </button>
       </div>
 
@@ -125,7 +132,7 @@ export function ApiKeysPanel({
                 <td className="px-4 py-2 font-mono text-xs text-muted">{k.keyPreview}</td>
                 {/* 3列目：作成日を日本の表記（年/月/日）に直して表示 */}
                 <td className="px-4 py-2 text-muted">
-                  {new Date(k.createdAt).toLocaleDateString("ja-JP")}
+                  {new Date(k.createdAt).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}
                 </td>
                 <td className="px-4 py-2 text-right">
                   {/* 漏れたキーを無効化する失効ボタン */}

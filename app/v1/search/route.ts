@@ -77,8 +77,9 @@ export async function POST(req: Request) {
   try {
     // クレジット（利用ポイント）の財布(ウォレット)を取り出して残高を確認する
     // 財布が無い、または残高が0以下なら「402（支払い／残高が必要）」を返す
+    // 最低1リード分（最大3クレジット）の残高が無ければ 402（空ジョブの無限生成を防ぐ）
     const wallet = getWallet(ws.id);
-    if (!wallet || wallet.balance <= 0)
+    if (!wallet || wallet.balance < 3)
       return NextResponse.json({ error: "insufficient_credits" }, { status: 402 });
 
     // 取得件数を 1〜250 の範囲におさめる（未指定なら100件）。小数は切り捨てて整数にする。

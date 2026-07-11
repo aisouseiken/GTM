@@ -28,7 +28,7 @@ export function issueApiKey(workspaceId: string, name: string): { apiKey: ApiKey
   const apiKey: ApiKey = {
     id: id("key"), // このキー自体を識別するID（"key_" で始まる）
     workspaceId, // どのワークスペース（作業場）に属するキーか
-    name: name || "API Key", // 名前が空なら既定名
+    name: (name || "API Key").slice(0, 60), // 名前が空なら既定名。長すぎる名前は60文字までに切る（肥大化防止）
     keyPreview: raw.slice(0, 12) + "…", // 表示用に先頭12文字だけ見せる（全体は見せない）
     keyHash: hashKey(raw), // 保存するのはハッシュ値だけ
     createdAt: Date.now(), // 発行した時刻（現在時刻をミリ秒の数値で記録）

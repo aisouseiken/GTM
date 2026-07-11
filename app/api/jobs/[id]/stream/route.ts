@@ -17,6 +17,9 @@ import { runSearchJob } from "@/lib/agent/runner";
 // JobEvent = 進捗イベント1件のデータの形（型）
 import type { JobEvent } from "@/lib/domain/types";
 
+// 指定ミリ秒だけ待つ小さな関数（再接続時のポーリング間隔に使う）
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // 【進捗配信】SSEでジョブの進捗を送りながら、ジョブ本体を実行する。GET /api/jobs/[id]/stream
 export async function GET(
   req: Request,
@@ -61,12 +64,30 @@ export async function GET(
         //   受け取れず、スピナーが永遠に回り続ける。
         const current = getJob(id);
         if (current && current.status !== "queued") {
-          for (const ev of current.events) send(ev); // 履歴を再生
-          // 既に終了している状態なら、画面が確実に「完了/一部完了/失敗」を認識できるよう最終状態を送る。
-          if (current.status === "done" || current.status === "partial") {
-            send({ type: "completed", message: "完了", at: Date.now(), payload: { status: current.status, count: current.resultCount, credits: current.creditsSpent } });
-          } else if (current.status === "failed") {
-            send({ type: "failed", message: "失敗", at: Date.now() });
+          let sentCount = 0; // 何件目まで送ったか（差分だけ送るため）
+          const flushEvents = () => {
+            const j = getJob(id);
+            if (!j) return;
+            for (; sentCount < j.events.length; sentCount++) send(j.events[sentCount]); // 未送信分だけ送る
+          };
+          flushEvents(); // まず履歴を再生
+          // まだ走行中(running/verifying)なら、終端になるまで少しずつ差分イベントを送り続ける。
+          //   （履歴だけ送って end で閉じると、走行中に再接続した画面が完了を受け取れずスピナーが固まるため）
+          const isTerminal = () => { const j = getJob(id); return !j || j.status === "done" || j.status === "partial" || j.status === "failed"; };
+          while (!isTerminal() && !closed && !req.signal.aborted) {
+            await sleep(400);
+            flushEvents();
+          }
+          flushEvents(); // 終端到達後の最後の差分（completed/failed 等）も送る
+          // 履歴の中に既に completed/failed が含まれていない場合だけ、最終状態を合成して送る（二重送出を防ぐ）。
+          const j = getJob(id);
+          const lastType = j?.events[j.events.length - 1]?.type;
+          if (j && lastType !== "completed" && lastType !== "failed") {
+            if (j.status === "done" || j.status === "partial") {
+              send({ type: "completed", message: "完了", at: Date.now(), payload: { status: j.status, count: j.resultCount, credits: j.creditsSpent } });
+            } else if (j.status === "failed") {
+              send({ type: "failed", message: "失敗", at: Date.now() });
+            }
           }
         } else {
           // 初回：ジョブ本体を実行する。進捗が出るたびに send が呼ばれて画面へ届く。

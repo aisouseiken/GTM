@@ -65,10 +65,12 @@ export default async function ApiKeysPage({
 curl -X POST https://<your-domain>/v1/search \\
   -H "Authorization: Bearer gtm_sk_..." \\
   -H "Content-Type: application/json" \\
-  -d '{"prompt":"東京の歯科医院で採用中","market":"JP","max_results":24}'
-# => { "job_id": "job_...", "status": "created" }
+  -d '{"prompt":"東京の歯科医院で採用中","market":"JP","max_results":100}'
+# ※ /v1/search は完了まで待つ同期実行。返る status は done / partial / failed。
+#   market は "JP" または "GLOBAL"、max_results は 1〜250（既定100）。
+# => { "job_id": "job_...", "status": "done" }
 
-# 結果を取得
+# 結果（リード一覧）を取得
 curl https://<your-domain>/v1/jobs/job_... \\
   -H "Authorization: Bearer gtm_sk_..."`}
           </pre>

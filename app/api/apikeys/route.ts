@@ -92,6 +92,9 @@ export async function POST(req: Request) {
   const ws = getWorkspace(workspaceId);
   if (!ws || ws.ownerId !== user.id)
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // ★発行数の上限：有効なキーが20本以上あれば新規発行を断る（キー量産によるレート制限回避・肥大化を防ぐ）
+  if (listApiKeys(workspaceId).length >= 20)
+    return NextResponse.json({ error: "too_many_keys" }, { status: 400 });
   // 新しいAPIキーを発行する。戻り値は2つ：
   //  - apiKey : 保存・表示用のキー情報（IDや名前など）
   //  - raw    : 発行直後だけ見られる「生の鍵文字列」。★この画面を離れると二度と再表示できないので要注意

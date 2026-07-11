@@ -189,7 +189,7 @@ export function Workspace({
   // 現在表示しているリードをひとつのリストとして保存する関数
   const saveList = async () => {
     // 保存名を「業種 · 今日の日付」の形で自動生成（industry が無ければ「リード」）
-    const name = `${plan?.icp.industry ?? "リード"} · ${new Date().toLocaleDateString("ja-JP")}`;
+    const name = `${plan?.icp.industry ?? "リード"} · ${new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}`;
     // サーバーの /api/lists に、名前と対象リードのID一覧を送って保存する
     await fetch("/api/lists", {
       method: "POST",
@@ -366,7 +366,7 @@ function PlanCard({
         disabled={running}
         className="mt-3 w-full rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
       >
-        {running ? "実行中…" : "この内容で実行する"}
+        {running ? "実行中…" : `この内容で実行（最大 約${plan.estimatedCredits} クレジット消費）`}
       </button>
     </div>
   );
@@ -525,11 +525,11 @@ function ResultsTable({
               <td className="px-3 py-2">
                 <FitBar score={l.fitScore} />
               </td>
-              {/* 会社列：会社アイコン＋会社名 */}
-              <td className="px-3 py-2">
+              {/* 会社列：会社アイコン＋会社名（長い社名は…で省略して横あふれを防ぐ） */}
+              <td className="max-w-[200px] px-3 py-2">
                 <span className="flex items-center gap-2">
                   <CompanyAvatar name={l.companyName} />
-                  <span className="text-ink">{l.companyName}</span>
+                  <span className="truncate text-ink">{l.companyName}</span>
                 </span>
               </td>
               {/* 業種列（広い画面でだけ表示） */}

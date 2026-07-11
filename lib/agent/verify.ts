@@ -98,12 +98,16 @@ export function verifyLead(lead: Lead): VerifyOutcome {
   const emailS = fieldScore(verifications, "email"); // メールの最終スコア（最高点）
   const phoneS = fieldScore(verifications, "phone"); // 電話の最終スコア（最高点）
 
-  // 総合信頼度：fitScore(0.3) + emailスコア(0.45) + phoneスコア(0.25) の加重
-  // ＝3つの点数にそれぞれ重み付けして合算し、総合的な信頼度を出す
+  // 総合信頼度：適合度(0.3) ＋ 連絡先の確からしさ(0.7)。
+  // ★連絡先は「強い方のチャネル」を主(0.5)・「弱い方」を従(0.2)として評価する。
+  //   以前は email 固定0.45だったため、電話しか無い業種（歯科・美容室・工務店など）は
+  //   どれだけ良質でも信頼度が54で頭打ち＝全部“中”に見えてしまった。これを是正する。
+  const strong = Math.max(emailS, phoneS); // 強い方の連絡先スコア
+  const weak = Math.min(emailS, phoneS); // 弱い方の連絡先スコア
   const confidence = Math.round(
-    lead.fitScore * 0.3 + // 適合度は3割の重み（条件への合い具合）
-      emailS * 0.45 + // メールの確からしさは4.5割の重み（連絡の主軸なので最も重視）
-      phoneS * 0.25 // 電話の確からしさは2.5割の重み
+    lead.fitScore * 0.3 + // 適合度は3割
+      strong * 0.5 + // 主たる連絡手段（メール or 電話の高い方）は5割
+      weak * 0.2 // もう片方の連絡手段は2割
   );
 
   return {

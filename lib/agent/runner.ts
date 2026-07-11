@@ -179,6 +179,10 @@ export async function runSearchJob(
         //   抑制フィルタは名寄せ直後に1回かけたが、上書きで抑制済みメールが混入し得るため再チェック。
         if (isSuppressed(lead.email)) continue;
       }
+      // ★保存の直前に抑制を最終チェック（メール・ドメイン両方）。
+      //   検証や待機(await)の最中に、そのリードがオプトアウト（削除請求）された場合でも、
+      //   ここで弾くことで「削除したはずのリードが後から復活する」のを確実に防ぐ（法令対応）。
+      if (isSuppressed(lead.email) || isDomainSuppressed(lead.domain)) continue;
       const { lead: verified, creditsUsed } = verifyLead(lead); // 検証して信頼度を確定（成功した検証の数も受け取る）
       // 検証成功分を課金（発見1 + 検証分）
       const cost = 1 + creditsUsed; // 発見コスト1 ＋ 検証で成功した分の合計が、このリードの請求額

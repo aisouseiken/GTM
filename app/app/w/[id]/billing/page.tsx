@@ -108,7 +108,7 @@ export default async function BillingPage({
                 {tx.map((t) => (
                   <tr key={t.id} className="border-t border-line/70">
                     <td className="px-4 py-2 text-muted">
-                      {new Date(t.createdAt).toLocaleString("ja-JP")}
+                      {new Date(t.createdAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                     </td>
                     <td className="px-4 py-2 text-ink">{t.note}</td>
                     <td

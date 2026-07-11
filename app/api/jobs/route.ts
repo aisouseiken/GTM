@@ -59,8 +59,10 @@ export async function POST(req: Request) {
   // ウォレット（残高を入れる財布）が無い、または残高が0以下なら 402（＝支払いが必要）を返す。
   // ★以前は「wallet && …」と書いていたため、財布が未作成のときにチェックをすり抜けていた不具合があった。
   //   「!wallet ||」に修正し、財布が無い場合もきちんと止まるようにしている。
+  // ★最低でも1リード分（発見1＋検証2＝最大3クレジット）の残高が無ければ 402。
+  //   残高が1〜2だと「実行はされるが1件も取れない空ジョブ」が無限に作られてしまうのを防ぐ。
   const wallet = getWallet(plan.workspaceId);
-  if (!wallet || wallet.balance <= 0)
+  if (!wallet || wallet.balance < 3)
     return NextResponse.json({ error: "insufficient_credits" }, { status: 402 });
 
   // ここまで全チェックを通過。ジョブを作成する。

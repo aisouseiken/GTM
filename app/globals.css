@@ -136,7 +136,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-caret {
+  .animate-caret,
+  .animate-row-in,
+  .animate-pulse-soft {
     animation: none;
   }
   .reveal-init {

@@ -77,7 +77,8 @@ export async function POST(req: Request) {
   // ★冪等化：同じワークスペース×プラン×同じ月では二度と付与しない。
   //   キーにプランを含めることで、アップグレード時（例 starter→pro）は別キー＝正しく付与され、
   //   同じプランの連打・往復は同キー＝再付与されない（＝増殖はプラン種類数ぶんに限定＝安全）。
-  const ym = new Date().toISOString().slice(0, 7); // 例: "2026-07"（今の年と月を取り出す）
+  // 例: "2026-07"（日本時間の年月）。UTCだと月初/月末の深夜に月がズレるため、JSTで判定する。
+  const ym = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }).slice(0, 7);
   setWorkspacePlan(workspaceId, plan); // 契約プランを選ばれたプランに設定する
   grantMonthlyCredits(workspaceId, plan, `mock:${workspaceId}:${plan}:${ym}`); // 当月分のクレジットを付与（プラン込みキーで二重付与防止）
   upsertSubscription(workspaceId, { plan, status: "active" }); // 契約情報を「有効」で保存・更新する
