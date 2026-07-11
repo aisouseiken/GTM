@@ -25,7 +25,14 @@ function isCrawlableUrl(raw: string): URL | null {
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return null; // http/https以外は不可
   const host = u.hostname.toLowerCase();
-  // localhost や社内・プライベートIP宛ては拒否（内部システムを踏ませない）
+  // IPv6リテラル（[::1] や [::ffff:127.0.0.1] 等）は内部到達の恐れがあるため一律拒否。
+  //   実在の企業サイトはドメイン名でアクセスするため、IPv6直書きを弾いても実害は無い。
+  if (host.includes(":")) return null;
+  // クラウドのメタデータ名や社内DNS名（内部IPに解決されがち）を拒否。
+  if (host === "metadata" || host === "metadata.google.internal" || host.endsWith(".internal")) {
+    return null;
+  }
+  // localhost や社内・プライベートIP(v4)宛ては拒否（内部システムを踏ませない）
   if (
     host === "localhost" ||
     host.endsWith(".local") ||
@@ -33,9 +40,8 @@ function isCrawlableUrl(raw: string): URL | null {
     /^127\./.test(host) || // ループバック
     /^10\./.test(host) || // プライベートA
     /^192\.168\./.test(host) || // プライベートC
-    /^169\.254\./.test(host) || // リンクローカル
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) || // プライベートB
-    host === "::1"
+    /^169\.254\./.test(host) || // リンクローカル（クラウドメタデータ 169.254.169.254 を含む）
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) // プライベートB
   ) {
     return null;
   }
@@ -75,13 +81,28 @@ export async function crawlContact(
   if (!url) return null; // 巡回不可なURL（内部宛て等）はスキップ
 
   try {
-    // 6秒でタイムアウト。名乗り(User-Agent)を明示し、正当なクローラであることを示す。
-    const res = await fetch(url.toString(), {
-      headers: { "User-Agent": "GTM-bot/0.1 (contact discovery)" },
-      redirect: "follow",
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) return null; // エラー応答は無視
+    // ★リダイレクトは自動追跡せず手動で追う（redirect: "manual"）。各転送先を isCrawlableUrl で
+    //   再検証することで、「公開サイト → 302 → 内部アドレス」というSSRF回避の抜け道を塞ぐ。
+    let current = url.toString();
+    let res: Response | null = null;
+    for (let hop = 0; hop < 4; hop++) {
+      res = await fetch(current, {
+        headers: { "User-Agent": "GTM-bot/0.1 (contact discovery)" },
+        redirect: "manual",
+        signal: AbortSignal.timeout(6000),
+      });
+      // 3xx（リダイレクト）なら転送先を取り出し、内部宛てでないか検証してから追う。
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return null; // 転送先不明なら中止
+        const next = isCrawlableUrl(new URL(loc, current).toString()); // 相対URL解決＋再検証
+        if (!next) return null; // 転送先が内部/プライベート等なら中止
+        current = next.toString();
+        continue;
+      }
+      break; // 3xx以外＝最終応答
+    }
+    if (!res || !res.ok) return null; // エラー応答は無視
     // 巨大ページ対策：先頭300KBだけ読む（連絡先はたいてい上部やフッターにある）。
     const html = (await res.text()).slice(0, 300_000);
     const email = extractEmail(html);

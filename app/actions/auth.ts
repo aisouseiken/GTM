@@ -33,6 +33,11 @@ export interface AuthState {
   error?: string;
 }
 
+// ★タイミング攻撃対策用のダミーハッシュ（起動時に1回だけ作る）。
+//   ログインで「メールが存在しない／パスワード未設定」のときも、これに対して照合を走らせ、
+//   処理時間を「実在ユーザーの照合」とそろえる。応答の速さでメールの有無を推測させないため。
+const DUMMY_PASSWORD_HASH = hashPassword("gtm-timing-guard-constant");
+
 // メールアドレスの形式が正しいかを、簡単なパターン照合でチェックする関数。
 // 「文字＠文字．文字」のような、最低限メールらしい形かどうかだけを見ています。
 function isValidEmail(email: string): boolean {
@@ -87,8 +92,13 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   // メールをもとに会員を探す（存在しなければ user は空になる）
   const user = getUserByEmail(email);
   // ★「そのメールが登録されているかどうか」を攻撃者に推測されないよう、
-  //   ユーザーが居ない場合も、パスワードが違う場合も、まったく同じエラー文言を返す
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  //   ユーザーが居ない場合も、パスワードが違う場合も、まったく同じエラー文言を返す。
+  //   さらに、ユーザー不在／パスワード未設定でもダミーハッシュに対して照合を実行し、
+  //   処理時間をそろえる（応答の速さでメールの有無を推測されるのを防ぐ＝タイミング攻撃対策）。
+  const ok = user?.passwordHash
+    ? verifyPassword(password, user.passwordHash)
+    : (verifyPassword(password, DUMMY_PASSWORD_HASH), false);
+  if (!ok || !user) {
     return { error: "メールアドレスまたはパスワードが正しくありません。" };
   }
 
@@ -109,7 +119,8 @@ export async function guestAction() {
   // レート制限：ゲスト作成の乱発（メモリ圧迫・いたずら）を防ぐ。全体で1分に30回まで。
   if (!rateLimit("guest-create", 30, 60_000)) redirect("/login");
   // 重複しない使い捨てメールを作る（画面上は表示されない内部用の識別子）。
-  const email = `guest-${randomUUID().slice(0, 8)}@guest.local`;
+  // ★UUID全体を使う（以前は先頭8桁=32bitで衝突しうり、衝突時に別ゲストへ相乗りする恐れがあった）。
+  const email = `guest-${randomUUID()}@guest.local`;
   // パスワードなしでゲスト会員を作成する（このアカウントはログイン照合には使えない＝ゲスト専用）。
   const user = createUser(email, "ゲスト");
   // 作ったゲストでログイン状態を確立する（この後はログイン済みとして扱われる）。

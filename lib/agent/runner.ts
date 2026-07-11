@@ -16,6 +16,7 @@ import {
   saveLead,
   spendCredits,
   isSuppressed,
+  isDomainSuppressed,
 } from "@/lib/data/store";
 import { getConnectors } from "@/lib/connectors/registry";
 import type { LeadCandidate } from "@/lib/connectors/types";
@@ -128,7 +129,8 @@ export async function runSearchJob(
     //    ★オプトアウト抑制：除外申請のあったメール/ドメインはリードから取り除く（法令・プライバシー対応）
     await sleep(220); // 進捗が見えるように少し待つ
     const merged = resolveCandidates(candidates, job.workspaceId, job.id) // 名寄せ（同じ会社をまとめる）
-      .filter((l) => !isSuppressed(l.email)) // 除外申請のあったメールのリードを取り除く
+      // 除外申請のあったメール、またはドメインのリードを取り除く（メール未取得でもドメインで弾く）
+      .filter((l) => !isSuppressed(l.email) && !isDomainSuppressed(l.domain))
       .slice(0, target); // 目標件数までに絞り込む
     emit(
       job,
@@ -173,6 +175,9 @@ export async function runSearchJob(
         const found = await crawlContact(lead.domain);
         if (found?.email) lead.email = found.email; // 見つかった公開メールで上書き
         if (found?.phone) lead.phone = found.phone; // 見つかった公開電話で上書き
+        // ★クロールで新たに得たメールが抑制対象なら、このリードは飛ばす（課金・保存の前に）。
+        //   抑制フィルタは名寄せ直後に1回かけたが、上書きで抑制済みメールが混入し得るため再チェック。
+        if (isSuppressed(lead.email)) continue;
       }
       const { lead: verified, creditsUsed } = verifyLead(lead); // 検証して信頼度を確定（成功した検証の数も受け取る）
       // 検証成功分を課金（発見1 + 検証分）

@@ -55,6 +55,8 @@ export async function geminiExtractICP(
 
   try {
     // Gemini に問い合わせる（fetch＝ネット越しに送受信、await＝返答を待つ）。
+    // ★8秒でタイムアウト（signal）。無応答でリクエストが無限に固まるのを防ぐ。
+    //   タイムアウト時は下の catch に入り null を返す＝ルールベースへ自動フォールバックする。
     const res = await fetch(endpoint(key), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,6 +65,7 @@ export async function geminiExtractICP(
         // responseMimeType=JSONで返させる、temperature=低めで安定した抽出にする。
         generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
       }),
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null; // エラー応答なら諦めてフォールバック
     const data = await res.json(); // 返答をJSONとして読む

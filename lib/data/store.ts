@@ -450,4 +450,10 @@ export function isSuppressed(email?: string): boolean {
   if (at >= 0 && db.suppression.has(e.slice(at + 1))) return true; // ドメイン単位の抑制
   return false; // どれにも当たらなければ対象外
 }
+// 会社のドメインそのものが抑制対象かどうか（メールが未取得のリードでもドメイン抑制を効かせるため）。
+export function isDomainSuppressed(domain?: string): boolean {
+  if (!domain) return false; // ドメインが無ければ対象外
+  const d = domain.trim().toLowerCase().replace(/^www\./, ""); // 比較用に整える（www.は除く）
+  return db.suppression.has(d); // ドメイン完全一致で抑制されていれば true
+}
 

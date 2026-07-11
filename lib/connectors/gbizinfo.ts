@@ -61,7 +61,8 @@ export const gbizConnector: DataSourceConnector = {
       const now = Date.now(); // 取得時刻（現在時刻）を1回だけ用意して全件で使い回す
 
       // 取得した企業を、必要件数だけ選んで、このアプリ共通の「候補」の形に変換する。
-      return infos.slice(0, input.count).map((h, i) => {
+      // 上限20件（リクエストの limit と揃える）と目標件数の小さい方までに絞る。
+      return infos.slice(0, Math.min(input.count, 20)).map((h, i) => {
         const name = h.name ?? `法人${i + 1}`; // 会社名（無ければ連番の仮名）
         const domain = `houjin-${h.corporate_number ?? i}.example.jp`; // 実運用ではサイト探索で補完
         const enrichment: Record<string, string> = {}; // 追加情報の入れ物（最初は空）

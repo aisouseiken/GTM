@@ -13,11 +13,11 @@ import type { LeadCandidate } from "@/lib/connectors/types";
 // ドメインを小文字化し www. や先頭のプロトコルを除去
 export function normalizeDomain(domain: string): string {
   return domain
+    .trim() // ★先に前後の空白を除く（後回しだとプロトコル除去などが空白でズレて誤正規化になる）
     .toLowerCase() // 大文字小文字の違いをなくす（Example.com → example.com）
     .replace(/^https?:\/\//, "") // 先頭の http:// や https:// を取り除く
     .replace(/^www\./, "") // 先頭の www. を取り除く
-    .replace(/\/.*$/, "") // 最初の「/」以降（ページのパス）を切り落とす
-    .trim(); // 前後の余分な空白を除く
+    .replace(/\/.*$/, ""); // 最初の「/」以降（ページのパス）を切り落とす
 }
 // 電話番号は数字だけにして比較（ハイフンや+の違いを吸収）
 export function normalizePhone(phone?: string): string | undefined {
@@ -34,12 +34,15 @@ export function resolveCandidates(
 ): Lead[] {
   // ドメイン（会社のウェブサイトのアドレス）を揃えたものをキーにして、同じ会社どうしをグループ化する
   const groups = new Map<string, LeadCandidate[]>();
-  for (const c of candidates) {
-    const key = normalizeDomain(c.domain); // 表記ゆれを吸収した「揃えたドメイン」を作る
+  candidates.forEach((c, i) => {
+    const norm = normalizeDomain(c.domain); // 表記ゆれを吸収した「揃えたドメイン」を作る
+    // ★ドメインが空の候補は名寄せのキーが無いので、無関係な別会社を1社に誤統合しないよう
+    //   一意なキー（連番付き）にして個別リード扱いにする。
+    const key = norm || `__nodomain_${i}`;
     const arr = groups.get(key) ?? []; // すでに同じ会社のグループがあれば取り出し、無ければ空の配列
     arr.push(c); // その会社のグループに今の候補を追加
     groups.set(key, arr); // 更新したグループを入れ直す
-  }
+  });
 
   const leads: Lead[] = []; // 統合後のリード（1社1件）をためる箱
   for (const [, group] of groups) {
